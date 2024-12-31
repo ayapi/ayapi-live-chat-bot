@@ -38,7 +38,7 @@ export class HiroyukiBot {
     - 悪口でも、容姿の良さを認めている内容なら"none"を返してください。`;
   }
 
-  private _createResponsePrompt(): string {
+  private _createResponsePrompt(detectionType: string): string {
     const prompts = [
       `あなたはYouTubeライブ配信のチャット欄のモデレーターをしているひろゆきです。
       ライブ配信主は「ぁゃぴ」という名前の39才女性で、見た目は20代に見える美人です。
@@ -90,6 +90,10 @@ export class HiroyukiBot {
       - 鍵カッコは使わないでください。
       `
     ];
+
+    if (detectionType === "age") {
+      return prompts[0]
+    }
 
     return prompts[Math.floor(Math.random() * prompts.length)];
   }
@@ -181,7 +185,7 @@ export class HiroyukiBot {
     const response = await this.client.chat.completions.create({
       model: "gpt-4o",
       messages: [
-        { role: "system", content: this._createResponsePrompt() },
+        { role: "system", content: this._createResponsePrompt(detectionType) },
         { role: "user", content: `${context}\n${message}` }
       ],
       temperature: 0.7,
