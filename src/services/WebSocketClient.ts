@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import { EventEmitter } from 'events';
 import { Comment } from "@onecomme.com/onesdk/types/Comment"
+import { Service } from "@onecomme.com/onesdk/types/Service"
 
 interface OneCommeWebSocketMessage {
   type: string;
@@ -17,17 +18,20 @@ export class WebSocketClient extends EventEmitter {
   }
 
   private connect(): void {
-    this.ws.on('open', () => {
-      console.log('WebSocket接続が確立されました');
-    });
-
     this.ws.on('message', (data: string) => {
       try {
         const message: OneCommeWebSocketMessage = JSON.parse(data);
         switch (message.type) {
+          case "connected":
+            this.emit('services', message.data.services as Service[]);
+            break;
+          case "services":
+            this.emit('services', message.data as Service[]);
+            break;
           case "comments":
             const comments = message.data.comments as Comment[]
             this.emit('comments', comments);
+            break;
         }
       } catch (error) {
         console.error('メッセージの解析に失敗しました:', error);
