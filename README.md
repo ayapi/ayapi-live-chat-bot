@@ -2,6 +2,9 @@
 
 ぁゃぴのライブ配信のチャット欄に常駐するAIボットです。
 
+![image](https://github.com/user-attachments/assets/47a0d1dd-3062-473b-8088-2db3d5b63d36)
+
+
 ## 機能
 
 わんコメのWebSocketのsubscriberとして動作します。
