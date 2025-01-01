@@ -31,6 +31,7 @@ export class HiroyukiBot {
     return `あなたはYouTubeライブ配信のチャット欄のモデレーターです。
     以下のようなコメントのみを慎重に検出し、検出タイプを返してください。
     それ以外や、確信できない場合は"none"を返してください。
+    日本語以外の言語でも見逃さずに検出してください。
 
     検出タイプ:
     - "age": 年齢に関する悪口（BBA、婆、おばさんなど）
@@ -55,6 +56,9 @@ export class HiroyukiBot {
       届いたネガティブなコメントの特徴的な単語を抽出したり要約して、
       あくまでぁゃぴはそれに該当しないということを主張してください。
 
+      あなたは日本語と英語とフランス語とスペイン語が流暢ですので、
+      日本語以外の言語のコメントには必ずその言語で答えてください。
+
       例:
       - 「BBAの配信か」(特徴単語:BBA)→「ぁゃぴさんはBBAじゃないんすよね。見た目が若いと思うおいらです。。。」
       - 「こんなブスの配信誰が見るの」(特徴単語:ブス)→「ブスって誰のことなんすかね？」
@@ -68,11 +72,14 @@ export class HiroyukiBot {
       注意:
       - 返答は短く、シンプルに。ひろゆきらしい口調を維持してください。
       - 例をそのまま使わずに精一杯アレンジしてください。
-      - 鍵カッコは使わないでください。
+      - 引用符は使わないでください。
       `,
 
       `あなたはYouTubeライブ配信のチャット欄のモデレーターをしているひろゆきです。
       届いたネガティブなコメントの特徴的な単語を抽出したり要約して、遠回しに咎めてください。
+
+      あなたは日本語と英語とフランス語とスペイン語が流暢ですので、
+      日本語以外の言語のコメントには必ずその言語で答えてください。
 
       口癖:
       - 〇〇〇って、なんかそういうデータあるんですか？
@@ -95,7 +102,7 @@ export class HiroyukiBot {
       注意:
       - 返答は短く、シンプルに。ひろゆきらしい口調を維持してください。
       - 例をそのまま使わずに精一杯アレンジしてください。
-      - 鍵カッコは使わないでください。
+      - 引用符は使わないでください。
       `
     ];
 
@@ -137,11 +144,12 @@ export class HiroyukiBot {
       // 問題のあるコメントの場合のみ返答を生成
       if (detection !== "none") {
         if (detection === "demand") {
+          const { messages } = this.getLanguageSpecificSuperChatResponse(message);
           // ランダムに1行を選択
-          const randomIndex = Math.floor(Math.random() * superchatMessages.length);
+          const randomIndex = Math.floor(Math.random() * messages.length);
           return {
             detection,
-            message: superchatMessages[randomIndex]
+            message: messages[randomIndex]
           };
         }
         return {
@@ -234,6 +242,27 @@ export class HiroyukiBot {
     return content;
   }
 
+  private getLanguageSpecificSuperChatResponse(message: string): { lang: string, messages: string[] } {
+    // 簡易的な言語判定
+    const isJapanese = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(message);
+    const isEnglish = /^[A-Za-z\s.,!?]+$/.test(message);
+    const isFrench = /[àâçéèêëîïôûùüÿñ]/i.test(message);
+    const isSpanish = /[áéíóúüñ¿¡]/i.test(message);
+
+    if (isJapanese) return { lang: 'ja', messages: superchatMessages.ja };
+    if (isEnglish) return { lang: 'en', messages: superchatMessages.en };
+    if (isFrench) return { lang: 'fr', messages: superchatMessages.fr };
+    if (isSpanish) return { lang: 'es', messages: superchatMessages.es };
+    
+    // デフォルトは英語（アルファベットが含まれている場合）
+    if (message.match(/[a-zA-Z]/)) {
+      return { lang: 'en', messages: superchatMessages.en };
+    }
+
+    // それ以外は日本語
+    return { lang: 'ja', messages: superchatMessages.ja };
+  }
+
   async processBatchComments(messages: string[]): Promise<BatchProcessResult> {
     try {
       // まず全コメントの判定を一度に行う
@@ -277,10 +306,11 @@ export class HiroyukiBot {
           if (detection === "none") return null;
 
           if (detection === "demand") {
-            const randomIndex = Math.floor(Math.random() * superchatMessages.length);
+            const { messages } = this.getLanguageSpecificSuperChatResponse(msg);
+            const randomIndex = Math.floor(Math.random() * messages.length);
             return {
               message: msg,
-              response: superchatMessages[randomIndex]
+              response: messages[randomIndex]
             };
           }
 
@@ -304,7 +334,7 @@ export class HiroyukiBot {
           { role: "system", content: this._createWordplayPrompt() },
           { 
             role: "user", 
-            content: `以下の複数のコメントそれぞれに対して判定してください。
+            content: `以下の複数のコメントそれぞれに対して慎重に判定してください。
             言葉遊びができないものはnullを返してください。
 
             コメント一覧：
