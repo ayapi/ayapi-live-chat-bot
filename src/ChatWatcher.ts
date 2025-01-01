@@ -10,6 +10,8 @@ export class ChatWatcher {
   private hiroyukiUserId: string;
   private youtubeService: YouTubeService;
   private currentYoutubeUrl: string | null = null;
+  private lastAgeResponse: number = 0;
+  private readonly AGE_COOLDOWN = 60 * 1000 * 5; // 5分。ミリ秒にする
 
   constructor(wsUrl: string, hiroyukiUserId: string) {
     this.wsClient = new WebSocketClient(wsUrl);
@@ -55,12 +57,22 @@ export class ChatWatcher {
     if (comment.data.hasGift) return;
 
     const { detection, message } = await this.hiroyuki.generateResponse(comment.data.comment);
-    if (message) {
-      if (detection === "demand") {
-        await this.youtubeService.postChatMessage(`${comment.data.name} さん、${message}`);
+    
+    if (!message) return;
+
+    if (detection === "age") {
+      const now = Date.now();
+      if (now - this.lastAgeResponse < this.AGE_COOLDOWN) {
+        console.log('年齢関連の反応はクールダウン中です');
+        return;
       }
-      await this.youtubeService.postChatMessage(message);
-      console.log(`Input: ${comment.data.comment} | Detection: ${detection} | Output: ${message}`);
+      this.lastAgeResponse = now;
     }
+
+    if (detection === "demand") {
+      await this.youtubeService.postChatMessage(`${comment.data.name} さん、${message}`);
+    }
+    await this.youtubeService.postChatMessage(message);
+    console.log(`Input: ${comment.data.comment} | Detection: ${detection} | Output: ${message}`);
   }
 }
