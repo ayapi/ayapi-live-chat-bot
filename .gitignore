@@ -1,3 +1,5 @@
 node_modules
 credentials
 .env
+bin
+output

@@ -5,12 +5,52 @@ import { Server } from 'http';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
+export interface YouTubeChatItem {
+  snippet?: {
+    type?: string;
+    liveChatId?: string;
+    publishedAt?: string;
+    authorChannelId?: string;
+    textDisplay?: string;
+    textMessageDetails?: {
+      messageText?: string;
+    };
+  };
+  authorDetails?: {
+    displayName?: string;
+    channelId?: string;
+    channelUrl?: string;
+    profileImageUrl?: string;
+    isVerified?: boolean;
+    isChatOwner?: boolean;
+    isChatSponsor?: boolean;
+    isChatModerator?: boolean;
+  };
+}
+
+// アーカイブとライブの両方に対応した共通の出力型
+export interface ChatMessage {
+  timestamp: string;
+  username: string;
+  message: string;
+}
+
+interface ChatParams {
+  part: string[];
+  liveChatId: string;
+  maxResults: number;
+  pageToken?: string;  // オプショナルプロパティとして追加
+}
+
 export class YouTubeService {
   private oauth2Client: OAuth2Client;
   private static readonly TOKEN_PATH = path.join(process.cwd(), 'credentials', 'token.json');
   private youtube: any;  // google.youtube のインスタンス
   private liveChatId: string | null = null;
+  private videoId: string | null = null;  // 追加
   private server: Server | null = null;
+  private chatId: string | null = null;
+  private isArchived: boolean = false;
   
   constructor() {
     this.oauth2Client = new OAuth2Client(
@@ -171,25 +211,66 @@ export class YouTubeService {
 
   private async getLiveChatIdFromVideoId(videoId: string): Promise<string | null> {
     try {
+      this.videoId = videoId;
+      
+      // まずビデオの情報を取得
+      const response = await this.youtube.videos.list({
+        part: ['liveStreamingDetails', 'snippet'],
+        id: [videoId]
+      });
+
+      if (!response.data.items || response.data.items.length === 0) {
+        throw new Error('ビデオが見つかりません');
+      }
+
+      const videoInfo = response.data.items[0];
+
+      // 現在進行中のライブ配信の場合
+      const liveChatId = videoInfo.liveStreamingDetails?.activeLiveChatId;
+      if (liveChatId) {
+        console.log('現在進行中のライブ配信を検出しました');
+        this.isArchived = false;
+        this.chatId = liveChatId;
+        return liveChatId;
+      }
+
+      // アーカイブされたライブ配信の場合
+      if (videoInfo.snippet?.liveBroadcastContent === 'none' && 
+          videoInfo.liveStreamingDetails?.actualEndTime) {
+        console.log('アーカイブされたライブ配信を検出しました');
+        this.isArchived = true;
+        const chatReplayId = await this.getChatReplayId(videoId);
+        if (chatReplayId) {
+          this.chatId = chatReplayId;
+          return chatReplayId;
+        }
+      }
+
+      throw new Error('このビデオのチャットにアクセスできません');
+
+    } catch (err) {
+      console.error('LiveChatIDの取得に失敗しました:', err);
+      return null;
+    }
+  }
+
+  private async getChatReplayId(videoId: string): Promise<string | null> {
+    try {
+      // チャットリプレイIDを取得
       const response = await this.youtube.videos.list({
         part: ['liveStreamingDetails'],
         id: [videoId]
       });
 
-      if (!response.data.items || response.data.items.length === 0) {
-        console.error('ライブ配信が見つかりません');
-        return null;
+      const chatReplayId = response.data.items?.[0]?.liveStreamingDetails?.activeLiveChatId;
+      if (!chatReplayId) {
+        throw new Error('チャットリプレイIDが見つかりません');
       }
 
-      const liveChatId = response.data.items[0].liveStreamingDetails?.activeLiveChatId;
-      if (!liveChatId) {
-        console.error('このビデオはライブ配信ではないか、チャットが無効になっています');
-        return null;
-      }
+      return chatReplayId;
 
-      return liveChatId;
-    } catch (err) {
-      console.error('ライブチャットIDの取得に失敗しました:', err);
+    } catch (error) {
+      console.error('チャットリプレイIDの取得に失敗しました:', error);
       return null;
     }
   }
@@ -292,5 +373,65 @@ export class YouTubeService {
     ];
 
     return patterns.some(pattern => pattern.test(url));
+  }
+
+  public async getChatMessages(pageToken?: string): Promise<{
+    messages: ChatMessage[];
+    nextPageToken?: string;
+  }> {
+    try {
+      if (!this.chatId) {
+        throw new Error('ChatIDが設定されていません');
+      }
+
+      const params: ChatParams = {
+        part: ['snippet', 'authorDetails'],
+        liveChatId: this.chatId,
+        maxResults: 100
+      };
+
+      if (pageToken) {
+        params.pageToken = pageToken;
+      }
+
+      console.log('APIリクエストパラメータ:', {
+        ...params,
+        isArchived: this.isArchived
+      });
+
+      const response = await this.youtube.liveChatMessages.list(params);
+
+      console.log('APIレスポンス:', {
+        pageInfo: response.data.pageInfo,
+        nextPageToken: response.data.nextPageToken,
+        itemsCount: response.data.items?.length || 0
+      });
+
+      const messages = (response.data.items || [])
+        .filter((item: YouTubeChatItem) => {
+          return item.snippet?.type === 'textMessageEvent';
+        })
+        .map((item: YouTubeChatItem): ChatMessage => ({
+          timestamp: item.snippet?.publishedAt || '',
+          username: item.authorDetails?.displayName || '',
+          message: item.snippet?.textMessageDetails?.messageText || ''
+        }));
+
+      return {
+        messages,
+        nextPageToken: response.data.nextPageToken
+      };
+
+    } catch (error: any) {
+      console.error('チャットメッセージの取得に失敗しました');
+      if (error.response) {
+        console.error('エラーレスポンス:', {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data
+        });
+      }
+      throw error;
+    }
   }
 }

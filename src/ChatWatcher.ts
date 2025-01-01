@@ -44,7 +44,7 @@ export class ChatWatcher {
       comments.forEach((comment) => {
         if (comment.data.userId === this.hiroyukiUserId) return;
         
-        console.log('コメントが届きました', comment)
+        // console.log('コメントが届きました', comment)
         this.handleMessage(comment);
       });
     });

@@ -124,7 +124,7 @@ export class HiroyukiBot {
   async generateResponse(message: string): Promise<BotResponse> {
     try {
       // まず判定のみ実行
-      const detection = await this._getCommentType(message);
+      const detection = await this.getCommentType(message);
       
       // 問題のあるコメントの場合のみ返答を生成
       if (detection !== "none") {
@@ -166,18 +166,23 @@ export class HiroyukiBot {
     }
   }
 
-  private async _getCommentType(message: string): Promise<string> {
-    const response = await this.client.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        { role: "system", content: this._createDetectionPrompt() },
-        { role: "user", content: message }
-      ],
-      temperature: 0.3,
-      max_tokens: 10
-    });
+  public async getCommentType(message: string): Promise<string> {
+    try {
+      const response = await this.client.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: this._createDetectionPrompt() },
+          { role: "user", content: message }
+        ],
+        temperature: 0.3,
+        max_tokens: 10
+      });
 
-    return (response.choices[0].message.content?.trim().toLowerCase().replace(/['"]/g, '')) ?? "none";
+      return (response.choices[0].message.content?.trim().toLowerCase().replace(/['"]/g, '')) ?? "none";
+    } catch (e) {
+      console.error("判定中にエラーが発生しました:", e);
+      return "error";
+    }
   }
 
   private async _generateHiroyukiResponse(message: string, detectionType: string): Promise<string|null> {
