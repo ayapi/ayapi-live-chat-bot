@@ -19,6 +19,8 @@ export class ChatWatcher {
   private readonly MAX_QUEUE_SIZE = 20;
   private readonly MESSAGE_INTERVAL = 10000; // 10秒
   private readonly QUEUE_INTERVAL = 60 * 1000; // 1分
+  private readonly PROMOTION_INTERVAL = 30 * 60 * 1000; // 30分
+  private readonly PROMOTION_INITIAL_DELAY = 15 * 60 * 1000; // 15分
 
   constructor(wsUrl: string, hiroyukiUserId: string) {
     this.wsClient = new WebSocketClient(wsUrl);
@@ -27,6 +29,7 @@ export class ChatWatcher {
     this.hiroyukiUserId = hiroyukiUserId;
     this.initialize();
     this.processQueue();
+    setTimeout(() => this.startPromotionMessage(), this.PROMOTION_INITIAL_DELAY);
   }
 
   private async initialize(): Promise<void> {
@@ -131,5 +134,32 @@ export class ChatWatcher {
       // 次の実行をスケジュール
       setTimeout(() => this.processQueue(), this.QUEUE_INTERVAL);
     }
+  }
+
+  private startPromotionMessage(): void {
+    const promotionMessages = [
+      "みなさん、ぁゃぴさんのこと気に入ったら、\"いいね\"とかチャンネル登録とか、スパチャとかして頂けると。暇だったらハートの連打もしてくれると、うれしいんすよね。",
+      "ぁゃぴさんは公式サイトに、長大なプロフィールがあるんすよね。暇つぶしに見てみるといいんじゃないですかね。あとX(旧Twitter)もよく投稿してるので、フォローしといた方がいいと思いますけどね。"
+    ];
+    
+    const postPromotion = async () => {
+      if (this.currentYoutubeUrl) {
+        // 1つ目のメッセージを投稿
+        await this.youtubeService.postChatMessage(promotionMessages[0]);
+        console.log('定期メッセージ1を投稿しました');
+
+        // 10秒待機
+        await new Promise(resolve => setTimeout(resolve, 10000));
+
+        // 2つ目のメッセージを投稿
+        await this.youtubeService.postChatMessage(promotionMessages[1]);
+        console.log('定期メッセージ2を投稿しました');
+      }
+    };
+
+    // 初回実行
+    postPromotion();
+    // 30分ごとに実行
+    setInterval(postPromotion, this.PROMOTION_INTERVAL);
   }
 }
