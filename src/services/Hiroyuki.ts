@@ -245,22 +245,19 @@ export class HiroyukiBot {
   private getLanguageSpecificSuperChatResponse(message: string): { lang: string, messages: string[] } {
     // 簡易的な言語判定
     const isJapanese = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(message);
+    const isKorean = /[\u3130-\u318F\uAC00-\uD7AF]/.test(message);
     const isEnglish = /^[A-Za-z\s.,!?]+$/.test(message);
     const isFrench = /[àâçéèêëîïôûùüÿñ]/i.test(message);
     const isSpanish = /[áéíóúüñ¿¡]/i.test(message);
 
     if (isJapanese) return { lang: 'ja', messages: superchatMessages.ja };
+    if (isKorean) return { lang: 'ko', messages: superchatMessages.ko };
     if (isEnglish) return { lang: 'en', messages: superchatMessages.en };
     if (isFrench) return { lang: 'fr', messages: superchatMessages.fr };
     if (isSpanish) return { lang: 'es', messages: superchatMessages.es };
     
-    // デフォルトは英語（アルファベットが含まれている場合）
-    if (message.match(/[a-zA-Z]/)) {
-      return { lang: 'en', messages: superchatMessages.en };
-    }
-
-    // それ以外は日本語
-    return { lang: 'ja', messages: superchatMessages.ja };
+    // 上記に当てはまらなければ英語
+    return { lang: 'en', messages: superchatMessages.en };
   }
 
   async processBatchComments(messages: string[]): Promise<BatchProcessResult> {
