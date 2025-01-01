@@ -60,10 +60,16 @@ export class ChatWatcher {
     });
   }
 
-  private handleMessage(comment: Comment): void {
+  private async handleMessage(comment: Comment): Promise<void> {
     if (comment.data.userId === this.hiroyukiUserId) return;
     if (comment.service !== "youtube") return;
-    if (comment.data.hasGift) return;
+
+    // スーパーチャットの場合は即座に反応
+    if (comment.data.hasGift) {
+      await this.youtubeService.postChatMessage("ナイスパ！");
+      console.log('スパチャへの反応を送信しました');
+      return;
+    }
 
     console.log('コメントがきたのでキューに入れます', comment.data.comment)
 
