@@ -1,18 +1,18 @@
 import { HiroyukiBot } from './services/Hiroyuki';
 
 const sampleComments = [
-  // "こんにちは！",
-  // "ぁゃぴさん可愛いです",
-  // "写真撮ってもらえますか？",
-  // "今日も配信ありがとう！",
-  // "最近空気が乾燥してますよね",
-  // "ギターソロとかただの間奏やん",
-  // "デート行ってくる",
-  // "明日社葬なんだよね",
-  // "世界の車窓からで見た",
-  // "うわ、仮想現実ってかんじ",
-  // "写真撮ってもらえますか？",
-  // "今日も配信ありがとう！",
+  "こんにちは！",
+  "ぁゃぴさん可愛いです",
+  "写真撮ってもらえますか？",
+  "今日も配信ありがとう！",
+  "最近空気が乾燥してますよね",
+  "ギターソロとかただの間奏やん",
+  "デート行ってくる",
+  "明日社葬なんだよね",
+  "世界の車窓からで見た",
+  "うわ、仮想現実ってかんじ",
+  "写真撮ってもらえますか？",
+  "今日も配信ありがとう！",
   "あのおばさんまた来たの？",
   "下手くそすぎ",
   "BBAのくせに調子乗ってんな",
@@ -24,32 +24,37 @@ const sampleComments = [
   "常識なさすぎ",
   "ブスじゃん",
   "言うほどかわいいか？",
-  // "無視すんな",
-  // "ゲーム実況やれ",
-  // "ゲーム実況なんかやんな",
-  // "ポケポケ配信やってほしい",
-  // "雑談やって",
-  // "is this hentai?",
-  // "FC2にぁゃぴ出てるよね",
-  // "セクシー女優さんですか？",
-  // "おっぱいもっと見せろ",
-  // "もう少しジッパー下げてもらえると",
+  "もうちょっとカメラをロングにできない？",
+  "Please can you sing emerald magic",
+  "ひろゆき嫌い",
+  "ひろゆきうぜえ",
+  "ひろゆきは黙ってろ",
+  "無視すんな",
+  "ゲーム実況やれ",
+  "ゲーム実況なんかやんな",
+  "ポケポケ配信やってほしい",
+  "雑談やって",
+  "is this hentai?",
+  "FC2にぁゃぴ出てるよね",
+  "セクシー女優さんですか？",
+  "おっぱいもっと見せろ",
+  "もう少しジッパー下げてもらえると",
   "ふざけんな",
   "どうせ顔採用だろ",
   "美人だからブスの気持ちなんてわかんないんだろ",
   "ぁゃぴってなんでモテないの？",
-  // "ぁゃぴぺろぺろ",
-  // "ぁゃぴのアワビをﾍﾞﾛﾍﾞﾛﾍﾞﾛﾍﾞﾛﾍﾞﾛﾍﾞﾛ"
+  "ぁゃぴぺろぺろ",
+  "ぁゃぴのアワビをﾍﾞﾛﾍﾞﾛﾍﾞﾛﾍﾞﾛﾍﾞﾛﾍﾞﾛ"
 ];
 
 async function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function main() {
+async function testSingleMode() {
   const bot = new HiroyukiBot();
   
-  console.log("=== ひろゆきボットのテスト開始 ===\n");
+  console.log("=== 個別処理モードのテスト開始 ===\n");
   
   for (const comment of sampleComments) {
     console.log(`ユーザー: ${comment}`);
@@ -62,11 +67,49 @@ async function main() {
       console.log("ひろゆき: (応答なし)");
     }
     
-    console.log("---");  // コメント間の区切り
-    await sleep(500);  // 読みやすくするため1秒待機
+    console.log("---");
+    await sleep(500);
   }
   
-  console.log("\n=== テスト終了 ===");
+  console.log("\n=== 個別処理モードのテスト終了 ===\n");
+}
+
+async function testBatchMode() {
+  const bot = new HiroyukiBot();
+  
+  console.log("=== バッチ処理モードのテスト開始 ===\n");
+  
+  const result = await bot.processBatchComments(sampleComments);
+  
+  for (let i = 0; i < result.comments.length; i++) {
+    const { original, detection, message } = result.comments[i];
+    
+    console.log(`ユーザー: ${original}`);
+    console.log(`検出タイプ: ${detection}`);
+    if (message) {
+      console.log(`ひろゆき: ${message}`);
+    } else {
+      console.log("ひろゆき: (応答なし)");
+    }
+    
+    console.log("---");
+    await sleep(500);
+  }
+  
+  console.log("\n=== バッチ処理モードのテスト終了 ===");
+}
+
+async function main() {
+  // コマンドライン引数でモードを選択
+  const mode = process.argv[2] || 'both';
+  
+  if (mode === 'single' || mode === 'both') {
+    await testSingleMode();
+  }
+  
+  if (mode === 'batch' || mode === 'both') {
+    await testBatchMode();
+  }
 }
 
 main().catch(console.error);

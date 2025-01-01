@@ -11,7 +11,14 @@ export class ChatWatcher {
   private youtubeService: YouTubeService;
   private currentYoutubeUrl: string | null = null;
   private lastAgeResponse: number = 0;
-  private readonly AGE_COOLDOWN = 60 * 1000 * 5; // 5分。ミリ秒にする
+  private lastUhyoResponse: number = 0;
+  private readonly AGE_COOLDOWN = 60 * 1000 * 5; // 5分
+  private readonly UHYO_COOLDOWN = 60 * 1000 * 5; // 5分
+  private commentQueue: Comment[] = [];
+  private isProcessing: boolean = false;
+  private readonly MAX_QUEUE_SIZE = 20;
+  private readonly MESSAGE_INTERVAL = 10000; // 10秒
+  private readonly QUEUE_INTERVAL = 60 * 1000; // 1分
 
   constructor(wsUrl: string, hiroyukiUserId: string) {
     this.wsClient = new WebSocketClient(wsUrl);
@@ -19,6 +26,7 @@ export class ChatWatcher {
     this.youtubeService = new YouTubeService();
     this.hiroyukiUserId = hiroyukiUserId;
     this.initialize();
+    this.processQueue();
   }
 
   private async initialize(): Promise<void> {
@@ -43,36 +51,85 @@ export class ChatWatcher {
 
     // コメントの監視
     this.wsClient.on('comments', (comments: Comment[]) => {
-      comments.forEach((comment) => {
-        if (comment.data.userId === this.hiroyukiUserId) return;
-        
-        // console.log('コメントが届きました', comment)
+      comments.forEach(comment => {
         this.handleMessage(comment);
       });
     });
   }
 
-  private async handleMessage(comment: Comment): Promise<void> {
+  private handleMessage(comment: Comment): void {
+    if (comment.data.userId === this.hiroyukiUserId) return;
     if (comment.service !== "youtube") return;
     if (comment.data.hasGift) return;
 
-    const { detection, message } = await this.hiroyuki.generateResponse(comment.data.comment);
-    
-    if (!message) return;
+    console.log('コメントがきたのでキューに入れます', comment.data.comment)
 
-    if (detection === "age") {
-      const now = Date.now();
-      if (now - this.lastAgeResponse < this.AGE_COOLDOWN) {
-        console.log('年齢関連の反応はクールダウン中です');
+    // キューが最大サイズを超える場合は古いコメントを削除
+    if (this.commentQueue.length >= this.MAX_QUEUE_SIZE) {
+      this.commentQueue = this.commentQueue.slice(-this.MAX_QUEUE_SIZE + 1);
+    }
+    this.commentQueue.push(comment);
+  }
+
+  private async processQueue() {
+    console.log('キューの処理開始');
+    if (this.isProcessing) return;
+
+    this.isProcessing = true;
+    try {
+      if (this.commentQueue.length === 0) {
+        console.log('キューが空なのでスキップします');
         return;
       }
-      this.lastAgeResponse = now;
-    }
 
-    if (detection === "demand") {
-      await this.youtubeService.postChatMessage(`${comment.data.name} さん、${message}`);
+      const commentsToProcess = [...this.commentQueue];
+      this.commentQueue = [];
+
+      console.log('コメントがきてたのでOpenAIに送ります');
+      const result = await this.hiroyuki.processBatchComments(
+        commentsToProcess.map(c => c.data.comment)
+      );
+
+      // レスポンスを順番に処理
+      for (let i = 0; i < result.comments.length; i++) {
+        const { detection, message } = result.comments[i];
+        const comment = commentsToProcess[i];
+        
+        if (!message) continue;
+
+        if (detection === "age") {
+          const now = Date.now();
+          if (now - this.lastAgeResponse < this.AGE_COOLDOWN) {
+            console.log('年齢関連の反応はクールダウン中です');
+            continue;
+          }
+          this.lastAgeResponse = now;
+        }
+
+        if (detection === "hiroyuki") {
+          const now = Date.now();
+          if (now - this.lastUhyoResponse < this.UHYO_COOLDOWN) {
+            console.log('うひょ反応はクールダウン中です');
+            continue;
+          }
+          this.lastUhyoResponse = now;
+        }
+
+        if (detection === "demand") {
+          await this.youtubeService.postChatMessage(`${comment.data.name} さん、${message}`);
+        } else {
+          await this.youtubeService.postChatMessage(message);
+        }
+        console.log(`Input: ${comment.data.comment} | Detection: ${detection} | Output: ${message}`);
+        
+        await new Promise(resolve => setTimeout(resolve, this.MESSAGE_INTERVAL));
+      }
+    } catch (error) {
+      console.error('キュー処理中にエラーが発生しました:', error);
+    } finally {
+      this.isProcessing = false;
+      // 次の実行をスケジュール
+      setTimeout(() => this.processQueue(), this.QUEUE_INTERVAL);
     }
-    await this.youtubeService.postChatMessage(message);
-    console.log(`Input: ${comment.data.comment} | Detection: ${detection} | Output: ${message}`);
   }
 }

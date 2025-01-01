@@ -9,6 +9,14 @@ interface BotResponse {
   message: string | null;
 }
 
+interface BatchProcessResult {
+  comments: {
+    original: string;
+    detection: string;
+    message: string | null;
+  }[];
+}
+
 export class HiroyukiBot {
   private client: OpenAI;
 
@@ -147,7 +155,15 @@ export class HiroyukiBot {
       if (wordplayResponse) {
         return {
           detection: "wordplay",
-          message: await this._getWordplayResponse(message)
+          message: wordplayResponse
+        };
+      }
+
+      // ひろゆきチェック
+      if (message.toLowerCase().includes('ひろゆき')) {
+        return {
+          detection: "hiroyuki",
+          message: "うひょ"
         };
       }
 
@@ -216,5 +232,157 @@ export class HiroyukiBot {
       return null;
     }
     return content;
+  }
+
+  async processBatchComments(messages: string[]): Promise<BatchProcessResult> {
+    try {
+      // まず全コメントの判定を一度に行う
+      const detectionResponse = await this.client.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: this._createDetectionPrompt() },
+          { 
+            role: "user", 
+            content: `以下の複数のコメントそれぞれについて検出タイプを判定してください。
+            但し、前のコメントと同じような内容がきたら"none"を返してください。
+
+            コメント一覧：
+            ${messages.map((msg, i) => `[${i}] ${msg}`).join('\n')}
+            
+            必ず以下の形式のJSONで返してください：
+            {
+              "detections": [
+                {
+                  "index": コメントの番号,
+                  "type": "検出タイプ(age/demand/insult/none)"
+                }
+              ]
+            }` 
+          }
+        ],
+        temperature: 0.3,
+        response_format: { type: "json_object" }
+      });
+
+      const result = JSON.parse(detectionResponse.choices[0].message.content || "{}");
+      const detections = result.detections?.reduce((acc: string[], item: { index: number, type: string }) => {
+        acc[item.index] = item.type;
+        return acc;
+      }, Array(messages.length).fill("none")) || [];
+
+      // 問題のあるコメントは個別に処理
+      const problematicResponses = await Promise.all(
+        messages.map(async (msg, i) => {
+          const detection = detections[i];
+          if (detection === "none") return null;
+
+          if (detection === "demand") {
+            const randomIndex = Math.floor(Math.random() * superchatMessages.length);
+            return {
+              message: msg,
+              response: superchatMessages[randomIndex]
+            };
+          }
+
+          const response = await this._generateHiroyukiResponse(msg, detection);
+          return {
+            message: msg,
+            response
+          };
+        })
+      );
+
+      // 問題ないコメントのみを対象に言葉遊びチェック
+      const normalComments = messages.filter((msg, i) => detections[i] === "none");
+      const normalCommentsIndices = messages.map((msg, i) => 
+        detections[i] === "none" ? i : -1
+      ).filter(i => i !== -1);
+      
+      const wordplayResponse = await this.client.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: this._createWordplayPrompt() },
+          { 
+            role: "user", 
+            content: `以下の複数のコメントそれぞれに対して判定してください。
+            言葉遊びができないものはnullを返してください。
+
+            コメント一覧：
+            ${normalComments.map((msg, i) => `[${i}] ${msg}`).join('\n')}
+            
+            必ず以下の形式のJSONで返してください：
+            {
+              "wordplays": [
+                {
+                  "index": コメントの番号,
+                  "response": "言葉遊びの返答 or null"
+                }
+              ]
+            }` 
+          }
+        ],
+        temperature: 0.7,
+        response_format: { type: "json_object" }
+      });
+
+      const wordplayResult = JSON.parse(wordplayResponse.choices[0].message.content || "{}");
+      const wordplays = wordplayResult.wordplays?.reduce((acc: { [key: number]: string | null }, item: { index: number, response: string | null }) => {
+        acc[normalCommentsIndices[item.index]] = item.response;
+        return acc;
+      }, {}) || {};
+
+      // 結果を元の配列の順序に合わせて整形
+      return {
+        comments: messages.map((msg, index) => {
+          const detection = detections[index];
+          
+          // 問題のあるコメントの処理
+          if (detection !== "none") {
+            const responseData = problematicResponses.find(r => r?.message === msg);
+            return {
+              original: msg,
+              detection,
+              message: responseData?.response || null
+            };
+          }
+
+          // 問題ないコメントは言葉遊びをチェック
+          const wordplayResponse = wordplays[index];
+          if (wordplayResponse) {
+            return {
+              original: msg,
+              detection: "wordplay",
+              message: wordplayResponse
+            };
+          }
+
+          // ひろゆきチェック
+          if (msg.toLowerCase().includes('ひろゆき')) {
+            return {
+              original: msg,
+              detection: "hiroyuki",
+              message: "うひょ"
+            };
+          }
+
+          // どちらにも該当しない場合
+          return {
+            original: msg,
+            detection: "none",
+            message: null
+          };
+        })
+      };
+
+    } catch (e) {
+      console.error("バッチ処理中にエラーが発生しました:", e);
+      return {
+        comments: messages.map(msg => ({
+          original: msg,
+          detection: "error",
+          message: null
+        }))
+      };
+    }
   }
 }
