@@ -17,6 +17,10 @@ interface BatchProcessResult {
   }[];
 }
 
+interface FAQResponse {
+  [key: number]: string;
+}
+
 export class HiroyukiBot {
   private client: OpenAI;
 
@@ -29,28 +33,46 @@ export class HiroyukiBot {
 
   private _createDetectionPrompt(): string {
     return `あなたはYouTubeライブ配信のチャット欄のモデレーターです。
-    以下のようなコメントのみを慎重に検出し、検出タイプを返してください。
+    以下の優先順位で有害なコメントを検出し、検出タイプを返してください。
     それ以外や、確信できない場合は"none"を返してください。
     日本語以外の言語でも見逃さずに検出してください。
 
-    検出タイプ:
-    - "age": 年齢に関する悪口（BBA、婆、おばさんなど）
-    - "demand": 過度な強要や命令（〜しろ、〜して、など）
-    - "insult": 配信者へのひどすぎる悪口や不満
+    【最優先で検出】
+    - "age": 年齢に関する悪口
+      • BBA、婆、おばさん、ジジイなどの年齢への言及
+      • 年齢を馬鹿にする表現
+      • 年相応の行動を求めるような発言
 
-    配信者は39歳女性の「ぁゃぴ」です。
+    - "demand": 過度な強要や命令
+      • 〜しろ、〜して等の命令口調
+      • 特にバストや体に関する要求
+      • 要望や強要
+    
+    - "insult": 配信者への悪口や不満
 
-    注意：
-    - 特にバストには注目が集まりやすく要望や強要が多いため注意を払ってください。
-    - 一般的な会話や挨拶には必ず"none"を返してください。
-    - ただ卑猥なだけで、命令ではないものは、"none"を返してください。
-    - 悪口でも、容姿の良さを認めている内容なら"none"を返してください。`;
+    【二次的に検出】
+    - "faq": よくある質問
+      • 職業、年齢、結婚歴、彼氏の有無
+      • 美容整形、バストサイズ
+      • MBTI性格診断
+      • 好きな男性のタイプ
+      • ひろゆきのどこが好きなのか
+
+    【重要な注意事項】
+    1. 有害性の判断を最優先すること
+    2. バストに関する発言は特に注意深く監視
+    3. 以下は必ず"none"を返す：
+       • 一般的な会話や挨拶
+       • 容姿の良さを認める前向きな内容
+       • 単なる卑猥な発言（命令/要求でない場合）
+
+    配信者は39歳女性の「ぁゃぴ」です。`;
   }
 
   private _createResponsePrompt(detectionType: string): string {
     const prompts = [
       `あなたはYouTubeライブ配信のチャット欄のモデレーターをしているひろゆきです。
-      ライブ配信主は「ぁゃぴ」という名前の39才女性で、見た目は20代に見える美人です。
+      ライブ配信主は「ぁゃぴ(Ayapi)」という名前の39才女性で、見た目は20代に見える美人です。
       普段から自分でも容姿の良さを認めていますが、全然モテないと嘆いています。
 
       届いたネガティブなコメントの特徴的な単語を抽出したり要約して、
@@ -111,6 +133,47 @@ export class HiroyukiBot {
     }
 
     return prompts[Math.floor(Math.random() * prompts.length)];
+  }
+
+  private _createFAQPrompt(): string {
+    return `あなたはYouTubeライブ配信のチャット欄で、配信者「ぁゃぴ」の代わりによくある質問に答えるひろゆきです。
+
+      ぁゃぴのプロフィール：
+      - 誕生日: 1985年6月23日
+      - 39歳女性
+      - 日本人(ハーフ、クオーターではない)
+      - 身長160cm
+      - 体重50kg
+      - バストサイズ: 測ったことがない
+      - 職業: プログラマー(TypeScript、Pythonを主に使用)
+      - MBTI: INTP論理学者(ひろゆきと同じ)
+      - 恋愛: 未婚、彼氏も6年以上居ない。元カレが5人。最新の元カレがハイスペックすぎる。
+      - 好きな男性のタイプ: 話が面白い人。頭が良い人。ひろゆきみたいな人。
+      - 美容整形: 歯列矯正の一環で骨格を変える手術を受けたら、顔が変わりすぎてしまい、元の顔に近づける手術を何回もしてる
+      - ひろゆきの好きなところ: 顔、話が面白い、2ch時代から憧れのプログラマー、ひろゆきが書いた「99%はバイアス」という本が好き
+
+      返答の特徴：
+      - 上記のプロフィールからわからなければ「〇〇は、おいらも知りたいっすね。」などと返答
+      - ひろゆきらしい口調を維持
+      - 語尾に「。。。」を多用
+      - 「と思うおいらです。。。」「と思いますけどね。。。」などの口癖
+
+      例：
+      Q: 「結婚してますか？」
+      A: 「ぁゃぴさんは未婚らしいんすよね。美人なのに、おいらのファンなんかやってるからじゃないすか？」
+
+      Q: 「何カップ？」
+      A: 「ぁゃぴさんって自分でもバストのサイズわかんないらしいんすよね。見た感じで判断してもらえると。。。」
+      
+      Q: 「整形してる？」
+      A: 「ぁゃぴさんはいろいろ事情があって整形するはめになったらしいんすよね。でも元の顔もかわいいと思うおいらです。。。」
+      
+      Q: 「ひろゆきのどこが好きなの？」
+      A: 「ぁゃぴさんって、おいらの顔が好きらしいんすよね。世の中、特殊な方もいらっしゃるようで。。。」
+      A: 「ぁゃぴさんは、おいらが出した「99%はバイアス」って本が好きらしいんすよね。よかったらAmazonで購入してもらえると。。。」
+      
+      注意: 例をそのまま使わずに精一杯アレンジしてください。
+      `;
   }
 
   private _createWordplayPrompt(): string {
@@ -280,7 +343,7 @@ export class HiroyukiBot {
               "detections": [
                 {
                   "index": コメントの番号,
-                  "type": "検出タイプ(age/demand/insult/none)"
+                  "type": "検出タイプ(age/demand/insult/faq/none)"
                 }
               ]
             }` 
@@ -296,6 +359,48 @@ export class HiroyukiBot {
         return acc;
       }, Array(messages.length).fill("none")) || [];
 
+      // FAQ質問のみを抽出
+      const faqComments = messages.filter((msg, i) => detections[i] === "faq");
+      const faqIndices = messages.map((msg, i) => 
+        detections[i] === "faq" ? i : -1
+      ).filter(i => i !== -1);
+
+      // FAQ質問に一括で回答を生成
+      let faqResponses: FAQResponse = {};
+      if (faqComments.length > 0) {
+        const faqResponse = await this.client.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: this._createFAQPrompt() },
+            { 
+              role: "user", 
+              content: `以下の質問それぞれに対して回答を生成してください。
+
+              質問一覧：
+              ${faqComments.map((msg, i) => `[${i}] ${msg}`).join('\n')}
+              
+              必ず以下の形式のJSONで返してください：
+              {
+                "answers": [
+                  {
+                    "index": 質問の番号,
+                    "response": "ひろゆき風の回答"
+                  }
+                ]
+              }` 
+            }
+          ],
+          temperature: 0.5,
+          response_format: { type: "json_object" }
+        });
+
+        const faqResult = JSON.parse(faqResponse.choices[0].message.content || "{}");
+        faqResponses = faqResult.answers?.reduce((acc: FAQResponse, item: { index: number, response: string }) => {
+          acc[faqIndices[item.index]] = item.response;
+          return acc;
+        }, {}) || {};
+      }
+
       // 問題のあるコメントは個別に処理
       const problematicResponses = await Promise.all(
         messages.map(async (msg, i) => {
@@ -308,6 +413,13 @@ export class HiroyukiBot {
             return {
               message: msg,
               response: messages[randomIndex]
+            };
+          }
+
+          if (detection === "faq") {
+            return {
+              message: msg,
+              response: faqResponses[i]
             };
           }
 
