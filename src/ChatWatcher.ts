@@ -143,10 +143,15 @@ export class ChatWatcher {
   }
 
   private startPromotionMessage(): void {
-    const promotionMessages = [
+    const promotionMessages: [string, string[]] = [
       "みなさん、ぁゃぴさんのこと気に入ったら、\"いいね\"とかチャンネル登録とか、スパチャとかして頂けると。暇だったらハートの連打もしてくれると、うれしいんすよね。",
-      "ぁゃぴさんは公式サイトに、長大なプロフィールがあるんすよね。暇つぶしに見てみるといいんじゃないですかね。あとX(旧Twitter)もよく投稿してるので、フォローしといた方がいいと思いますけどね。"
+      [
+        "ぁゃぴさんは公式サイトに、長大なプロフィールがあるんすよね。暇つぶしに見てみるといいんじゃないですかね。あとX(旧Twitter)もよく投稿してるので、フォローしといた方がいいと思いますけどね。",
+        "ぁゃぴさんは、\"西村博之\"っていう曲を作ってMusic Videoまで公開してるんすよね。クオリティー高いらしいんで、見たほうがいいんじゃないすかね。おいらは共感性羞恥で5秒も見てられなかったですけど。"
+      ]
     ];
+    
+    let secondMessageIndex = 0;  // 2つ目のメッセージを交互に切り替えるためのインデックス
     
     const postPromotion = async () => {
       if (this.currentYoutubeUrl) {
@@ -157,9 +162,12 @@ export class ChatWatcher {
         // 10秒待機
         await new Promise(resolve => setTimeout(resolve, 10000));
 
-        // 2つ目のメッセージを投稿
-        await this.youtubeService.postChatMessage(promotionMessages[1]);
-        console.log('定期メッセージ2を投稿しました');
+        // 2つ目のメッセージを投稿（交互に切り替え）
+        await this.youtubeService.postChatMessage(promotionMessages[1][secondMessageIndex]);
+        console.log(`定期メッセージ2-${secondMessageIndex + 1}を投稿しました`);
+        
+        // 次回用にインデックスを切り替え
+        secondMessageIndex = (secondMessageIndex + 1) % 2;
       }
     };
 
