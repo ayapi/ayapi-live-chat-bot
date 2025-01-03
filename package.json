@@ -15,6 +15,7 @@
     "@onecomme.com/onesdk": "^7.0.0",
     "@types/express": "^5.0.0",
     "@types/ws": "^8.5.13",
+    "cheerio": "^1.0.0",
     "csv-parser": "^3.1.0",
     "csv-writer": "^1.6.0",
     "dotenv": "^16.4.7",

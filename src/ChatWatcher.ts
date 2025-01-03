@@ -1,3 +1,4 @@
+import * as cheerio from 'cheerio';
 import { Comment } from "@onecomme.com/onesdk/types/Comment"
 import { Service } from "@onecomme.com/onesdk/types/Service"
 import { WebSocketClient } from './services/WebSocketClient';
@@ -71,13 +72,32 @@ export class ChatWatcher {
       return;
     }
 
-    console.log('コメントがきたのでキューに入れます', comment.data.comment)
+    console.log('コメントがきたのでキューに入れます')
 
     // キューが最大サイズを超える場合は古いコメントを削除
     if (this.commentQueue.length >= this.MAX_QUEUE_SIZE) {
       this.commentQueue = this.commentQueue.slice(-this.MAX_QUEUE_SIZE + 1);
     }
     this.commentQueue.push(comment);
+  }
+
+  private removeHtmlTags(text: string): string {
+    // HTMLをパース
+    const $ = cheerio.load(text);
+
+    let result = $('span[data-lang="ja"]').text();
+
+    if (!result) {
+      result = $('span.origin').text();
+    }
+    if (!result) {
+      result = text;
+    }
+
+    return result
+      .replace(/^[(（]/, '')
+      .replace(/[)）]$/, '')
+      .replace(/[\r\n]/g, '');
   }
 
   private async processQueue() {
@@ -96,7 +116,7 @@ export class ChatWatcher {
 
       console.log('コメントがきてたのでOpenAIに送ります');
       const result = await this.hiroyuki.processBatchComments(
-        commentsToProcess.map(c => c.data.comment)
+        commentsToProcess.map(c => this.removeHtmlTags(c.data.comment))
       );
 
       // レスポンスを順番に処理
@@ -129,7 +149,7 @@ export class ChatWatcher {
         } else {
           await this.youtubeService.postChatMessage(message);
         }
-        console.log(`Input: ${comment.data.comment} | Detection: ${detection} | Output: ${message}`);
+        console.log(`Input: ${this.removeHtmlTags(comment.data.comment)} | Detection: ${detection} | Output: ${message}`);
         
         await new Promise(resolve => setTimeout(resolve, this.MESSAGE_INTERVAL));
       }
