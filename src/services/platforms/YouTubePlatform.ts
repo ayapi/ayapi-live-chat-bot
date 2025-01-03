@@ -1,6 +1,5 @@
 import { IChatPlatform, PlatformState } from '../IChatPlatform';
 import { YouTubeService } from '../YouTubeService';
-import { Comment } from "@onecomme.com/onesdk/types/Comment";
 
 export class YouTubePlatform implements IChatPlatform {
   private youtubeService: YouTubeService;
@@ -33,9 +32,5 @@ export class YouTubePlatform implements IChatPlatform {
 
   getState(): PlatformState {
     return this.state;
-  }
-
-  convertToComment(youtubeComment: any): Comment {
-    return youtubeComment; // YouTubeのコメントは既にわんコメのComment型
   }
 } 

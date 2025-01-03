@@ -12,5 +12,4 @@ export interface IChatPlatform {
   postMessage(message: string): Promise<void>;
   getPlatformName(): string;
   getState(): PlatformState;
-  convertToComment(rawComment: any): Comment;
 } 

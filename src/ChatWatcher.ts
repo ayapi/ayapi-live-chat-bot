@@ -3,6 +3,7 @@ import { WebSocketClient } from './services/WebSocketClient';
 import { HiroyukiBot } from "./services/Hiroyuki";
 import { IChatPlatform } from './services/IChatPlatform';
 import { YouTubePlatform } from './services/platforms/YouTubePlatform';
+import { TikTokPlatform } from './services/platforms/TikTokPlatform';
 import { Comment } from "@onecomme.com/onesdk/types/Comment";
 import { Service } from "@onecomme.com/onesdk/types/Service";
 
@@ -32,10 +33,9 @@ export class ChatWatcher {
     if (configs.youtube) {
       this.platforms.set('youtube', new YouTubePlatform(configs.youtube.botUserId));
     }
-    // 他のプラットフォームも同様に初期化
-    // if (configs.tiktok) {
-    //   this.platforms.set('tiktok', new TikTokPlatform(configs.tiktok.botUserId));
-    // }
+    if (configs.tiktok) {
+      this.platforms.set('tiktok', new TikTokPlatform(configs.tiktok.botUserId));
+    }
   }
 
   private async initialize(): Promise<void> {
@@ -59,11 +59,12 @@ export class ChatWatcher {
   }
 
   private getPlatformForUrl(url: string): IChatPlatform | null {
-    // URLに基づいて適切なプラットフォームを返す
     if (url && url.includes('youtube.com')) {
       return this.platforms.get('youtube') || null;
     }
-    // 他のプラットフォームの判定もここに追加
+    if (url && url.includes('tiktok.com')) {
+      return this.platforms.get('tiktok') || null;
+    }
     return null;
   }
 
