@@ -85,6 +85,14 @@ export class ChatWatcher {
     // HTMLをパース
     const $ = cheerio.load(text);
 
+    // img要素のalt属性を実際のテキストに置換
+    $('img').each((_, el) => {
+      const alt = $(el).attr('alt');
+      if (alt) {
+        $(el).replaceWith(alt);
+      }
+    });
+
     let result = $('span[data-lang="ja"]').text();
 
     if (!result) {
