@@ -6,15 +6,17 @@
   "scripts": {
     "test": "ts-node src/test.ts",
     "start": "ts-node src/index.ts",
-    "dev": "nodemon --exec ts-node src/index.ts"
+    "dev": "nodemon --exec ts-node src/index.ts",
+    "auth-server": "ts-node src/auth.ts",
+    "test-twicas": "ts-node src/test-twicas.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@onecomme.com/onesdk": "^7.0.0",
-    "@types/express": "^5.0.0",
     "@types/ws": "^8.5.13",
+    "axios": "^1.7.9",
     "cheerio": "^1.0.0",
     "csv-parser": "^3.1.0",
     "csv-writer": "^1.6.0",
@@ -28,6 +30,7 @@
     "yt-dlp-wrap": "^2.3.12"
   },
   "devDependencies": {
+    "@types/express": "^5.0.0",
     "@types/node": "^22.10.2",
     "nodemon": "^3.1.9",
     "ts-node": "^10.9.2"

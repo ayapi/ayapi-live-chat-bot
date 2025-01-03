@@ -4,6 +4,7 @@ import { HiroyukiBot } from "./services/Hiroyuki";
 import { IChatPlatform } from './services/IChatPlatform';
 import { YouTubePlatform } from './services/platforms/YouTubePlatform';
 import { TikTokPlatform } from './services/platforms/TikTokPlatform';
+import { TwitcastingPlatform } from './services/platforms/TwitcastingPlatform';
 import { Comment } from "@onecomme.com/onesdk/types/Comment";
 import { Service } from "@onecomme.com/onesdk/types/Service";
 
@@ -36,6 +37,9 @@ export class ChatWatcher {
     if (configs.tiktok) {
       this.platforms.set('tiktok', new TikTokPlatform(configs.tiktok.botUserId));
     }
+    if (configs.twitcasting) {
+      this.platforms.set('twicas', new TwitcastingPlatform(configs.twitcasting.botUserId));
+    }
   }
 
   private async initialize(): Promise<void> {
@@ -64,6 +68,9 @@ export class ChatWatcher {
     }
     if (url && url.includes('tiktok.com')) {
       return this.platforms.get('tiktok') || null;
+    }
+    if (url && url.includes('twitcasting.tv')) {
+      return this.platforms.get('twicas') || null;
     }
     return null;
   }
