@@ -22,7 +22,7 @@ export class TikTokPlatform implements IChatPlatform {
 
   async postMessage(message: string): Promise<void> {
     try {
-      await axios.post(this.TIKTOK_API_URL, { text: message });
+      await axios.post(this.TIKTOK_API_URL, { message });
     } catch (error) {
       console.error('TikTokメッセージの送信に失敗しました:', error);
       throw error;
