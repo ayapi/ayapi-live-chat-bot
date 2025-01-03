@@ -4,14 +4,24 @@ import { ChatWatcher } from './ChatWatcher';
 dotenv.config();
 
 const WS_URL = process.env.WEBSOCKET_URL || 'ws://localhost:8080';
-const HIROYUKI_USER_ID = process.env.HIROYUKI_USER_ID
+const YOUTUBE_BOT_USER_ID = process.env.YOUTUBE_BOT_USER_ID
 
-if (!HIROYUKI_USER_ID) {
+if (!YOUTUBE_BOT_USER_ID) {
   throw new Error('ひろゆきボット用YouTubeアカウントのUserIdが指定されていません');
 }
 
 const main = () => {
-  const chatWatcher = new ChatWatcher(WS_URL, HIROYUKI_USER_ID);
+  const chatWatcher = new ChatWatcher(WS_URL, {
+    youtube: {
+      botUserId: YOUTUBE_BOT_USER_ID
+    },
+    // tiktok: {
+    //   botUserId: 'tiktok-bot-id'
+    // },
+    // twitcasting: {
+    //   botUserId: 'twitcasting-bot-id'
+    // }
+  });
   console.log('チャット監視を開始しました');
 };
 

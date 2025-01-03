@@ -1,20 +1,15 @@
 import * as cheerio from 'cheerio';
-import { Comment } from "@onecomme.com/onesdk/types/Comment"
-import { Service } from "@onecomme.com/onesdk/types/Service"
 import { WebSocketClient } from './services/WebSocketClient';
 import { HiroyukiBot } from "./services/Hiroyuki";
-import { YouTubeService } from "./services/YouTubeService";
+import { IChatPlatform } from './services/IChatPlatform';
+import { YouTubePlatform } from './services/platforms/YouTubePlatform';
+import { Comment } from "@onecomme.com/onesdk/types/Comment";
+import { Service } from "@onecomme.com/onesdk/types/Service";
 
 export class ChatWatcher {
   private wsClient: WebSocketClient;
   private hiroyuki: HiroyukiBot;
-  private hiroyukiUserId: string;
-  private youtubeService: YouTubeService;
-  private currentYoutubeUrl: string | null = null;
-  private lastAgeResponse: number = 0;
-  private lastUhyoResponse: number = 0;
-  private readonly AGE_COOLDOWN = 60 * 1000 * 5; // 5分
-  private readonly UHYO_COOLDOWN = 60 * 1000 * 5; // 5分
+  private platforms: Map<string, IChatPlatform> = new Map();
   private commentQueue: Comment[] = [];
   private isProcessing: boolean = false;
   private readonly MAX_QUEUE_SIZE = 20;
@@ -22,59 +17,72 @@ export class ChatWatcher {
   private readonly QUEUE_INTERVAL = 60 * 1000; // 1分
   private readonly PROMOTION_INTERVAL = 30 * 60 * 1000; // 30分
   private readonly PROMOTION_INITIAL_DELAY = 15 * 60 * 1000; // 15分
+  private readonly COOLDOWN_DURATION = 60 * 1000 * 5; // 5分
 
-  constructor(wsUrl: string, hiroyukiUserId: string) {
+  constructor(wsUrl: string, platformConfigs: { [key: string]: any }) {
     this.wsClient = new WebSocketClient(wsUrl);
     this.hiroyuki = new HiroyukiBot();
-    this.youtubeService = new YouTubeService();
-    this.hiroyukiUserId = hiroyukiUserId;
+    this.initializePlatforms(platformConfigs);
     this.initialize();
     this.processQueue();
     setTimeout(() => this.startPromotionMessage(), this.PROMOTION_INITIAL_DELAY);
   }
 
+  private initializePlatforms(configs: { [key: string]: any }): void {
+    if (configs.youtube) {
+      this.platforms.set('youtube', new YouTubePlatform(configs.youtube.botUserId));
+    }
+    // 他のプラットフォームも同様に初期化
+    // if (configs.tiktok) {
+    //   this.platforms.set('tiktok', new TikTokPlatform(configs.tiktok.botUserId));
+    // }
+  }
+
   private async initialize(): Promise<void> {
-    // 枠情報の監視
     this.wsClient.on('services', async (services: Service[]) => {
-      const youtubeService = services.find(service => 
-        service.url && YouTubeService.isYouTubeUrl(service.url)
-      );
-
-      if (!youtubeService?.url) return;
-
-      if (this.currentYoutubeUrl !== youtubeService.url) {
-        this.currentYoutubeUrl = youtubeService.url;
-        const initialized = await this.youtubeService.initializeWithUrl(youtubeService.url);
-        if (!initialized) {
-          console.error('YouTubeサービスの初期化に失敗しました');
-        } else {
-          console.log(`YouTube URL: ${youtubeService.url} で初期化しました`);
+      for (const service of services) {
+        const platform = this.getPlatformForUrl(service.url);
+        if (platform) {
+          await platform.initialize({ url: service.url });
         }
       }
     });
 
-    // コメントの監視
     this.wsClient.on('comments', (comments: Comment[]) => {
       comments.forEach(comment => {
+        const platform = this.platforms.get(comment.service);
+        if (!platform) return;
+
         this.handleMessage(comment);
       });
     });
   }
 
-  private async handleMessage(comment: Comment): Promise<void> {
-    if (comment.data.userId === this.hiroyukiUserId) return;
-    if (comment.service !== "youtube") return;
+  private getPlatformForUrl(url: string): IChatPlatform | null {
+    // URLに基づいて適切なプラットフォームを返す
+    if (url && url.includes('youtube.com')) {
+      return this.platforms.get('youtube') || null;
+    }
+    // 他のプラットフォームの判定もここに追加
+    return null;
+  }
 
-    // スーパーチャットの場合は即座に反応
+  private async handleMessage(comment: Comment): Promise<void> {
+    const platform = this.platforms.get(comment.service);
+    if (!platform) return;
+
+    const state = platform.getState();
+    if (comment.data.userId === state.botUserId) return;
+
     if (comment.data.hasGift) {
-      await this.youtubeService.postChatMessage("ナイスパ！");
-      console.log('スパチャへの反応を送信しました');
+      const now = Date.now();
+      if (now - state.lastGiftResponse >= this.COOLDOWN_DURATION) {
+        await platform.postMessage("ナイスパ！");
+        state.lastGiftResponse = now;
+      }
       return;
     }
 
-    console.log('コメントがきたのでキューに入れます')
-
-    // キューが最大サイズを超える場合は古いコメントを削除
     if (this.commentQueue.length >= this.MAX_QUEUE_SIZE) {
       this.commentQueue = this.commentQueue.slice(-this.MAX_QUEUE_SIZE + 1);
     }
@@ -109,68 +117,55 @@ export class ChatWatcher {
   }
 
   private async processQueue() {
-    console.log('キューの処理開始');
     if (this.isProcessing) return;
 
     this.isProcessing = true;
     try {
-      if (this.commentQueue.length === 0) {
-        console.log('キューが空なのでスキップします');
-        return;
-      }
+      if (this.commentQueue.length === 0) return;
 
       const commentsToProcess = [...this.commentQueue];
       this.commentQueue = [];
 
-      console.log('コメントがきてたのでOpenAIに送ります');
       const result = await this.hiroyuki.processBatchComments(
         commentsToProcess.map(c => this.removeHtmlTags(c.data.comment))
       );
 
-      // レスポンスを順番に処理
       for (let i = 0; i < result.comments.length; i++) {
         const { detection, message } = result.comments[i];
         const comment = commentsToProcess[i];
+        const platform = this.platforms.get(comment.service);
         
-        if (!message) continue;
+        if (!message || !platform) continue;
 
-        if (detection === "age") {
-          const now = Date.now();
-          if (now - this.lastAgeResponse < this.AGE_COOLDOWN) {
-            console.log('年齢関連の反応はクールダウン中です');
-            continue;
-          }
-          this.lastAgeResponse = now;
+        const state = platform.getState();
+        const now = Date.now();
+
+        if (detection === "age" && now - state.lastAgeResponse < this.COOLDOWN_DURATION) {
+          continue;
+        }
+        if (detection === "hiroyuki" && now - state.lastUhyoResponse < this.COOLDOWN_DURATION) {
+          continue;
         }
 
-        if (detection === "hiroyuki") {
-          const now = Date.now();
-          if (now - this.lastUhyoResponse < this.UHYO_COOLDOWN) {
-            console.log('うひょ反応はクールダウン中です');
-            continue;
-          }
-          this.lastUhyoResponse = now;
-        }
+        if (detection === "age") state.lastAgeResponse = now;
+        if (detection === "hiroyuki") state.lastUhyoResponse = now;
 
-        if (detection === "demand") {
-          await this.youtubeService.postChatMessage(`${comment.data.name} さん、${message}`);
-        } else {
-          await this.youtubeService.postChatMessage(message);
-        }
-        console.log(`Input: ${this.removeHtmlTags(comment.data.comment)} | Detection: ${detection} | Output: ${message}`);
-        
+        const finalMessage = detection === "demand" 
+          ? `${comment.data.name} さん、${message}`
+          : message;
+
+        await platform.postMessage(finalMessage);
         await new Promise(resolve => setTimeout(resolve, this.MESSAGE_INTERVAL));
       }
     } catch (error) {
       console.error('キュー処理中にエラーが発生しました:', error);
     } finally {
       this.isProcessing = false;
-      // 次の実行をスケジュール
       setTimeout(() => this.processQueue(), this.QUEUE_INTERVAL);
     }
   }
 
-  private startPromotionMessage(): void {
+  private async startPromotionMessage(): Promise<void> {
     const promotionMessages: [string, string[]] = [
       "みなさん、ぁゃぴさんのこと気に入ったら、\"いいね\"とかチャンネル登録とか、スパチャとかして頂けると。暇だったらハートの連打もしてくれると、うれしいんすよね。",
       [
@@ -182,16 +177,17 @@ export class ChatWatcher {
     let secondMessageIndex = 0;  // 2つ目のメッセージを交互に切り替えるためのインデックス
     
     const postPromotion = async () => {
-      if (this.currentYoutubeUrl) {
+      const platform = this.platforms.get('youtube');
+      if (platform) {
         // 1つ目のメッセージを投稿
-        await this.youtubeService.postChatMessage(promotionMessages[0]);
+        await platform.postMessage(promotionMessages[0]);
         console.log('定期メッセージ1を投稿しました');
 
         // 10秒待機
         await new Promise(resolve => setTimeout(resolve, 10000));
 
         // 2つ目のメッセージを投稿（交互に切り替え）
-        await this.youtubeService.postChatMessage(promotionMessages[1][secondMessageIndex]);
+        await platform.postMessage(promotionMessages[1][secondMessageIndex]);
         console.log(`定期メッセージ2-${secondMessageIndex + 1}を投稿しました`);
         
         // 次回用にインデックスを切り替え
