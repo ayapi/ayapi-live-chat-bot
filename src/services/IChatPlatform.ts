@@ -10,6 +10,7 @@ export interface PlatformState {
 export interface IChatPlatform {
   initialize(config: any): Promise<boolean>;
   postMessage(message: string): Promise<void>;
+  postThanksMessage(comment: Comment): Promise<void>;
   getPlatformName(): string;
   getState(): PlatformState;
 } 

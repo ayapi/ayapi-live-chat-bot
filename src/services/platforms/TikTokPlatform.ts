@@ -1,4 +1,5 @@
 import { IChatPlatform, PlatformState } from '../IChatPlatform';
+import { Comment } from "@onecomme.com/onesdk/types/Comment";
 import axios from 'axios';
 
 export class TikTokPlatform implements IChatPlatform {
@@ -26,6 +27,15 @@ export class TikTokPlatform implements IChatPlatform {
       console.error('TikTokメッセージの送信に失敗しました:', error);
       throw error;
     }
+  }
+
+  async postThanksMessage(comment: Comment): Promise<void> {
+    const messages = [
+      `@${comment.data.displayName} さん、ナイギフです！`,
+      `@${comment.data.displayName} さん、Nice Gift！`,
+    ];
+    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+    await this.postMessage(randomMessage);
   }
 
   getPlatformName(): string {

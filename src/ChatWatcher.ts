@@ -76,11 +76,7 @@ export class ChatWatcher {
     if (comment.data.userId === state.botUserId) return;
 
     if (comment.data.hasGift) {
-      const now = Date.now();
-      if (now - state.lastGiftResponse >= this.COOLDOWN_DURATION) {
-        await platform.postMessage("ナイスパ！");
-        state.lastGiftResponse = now;
-      }
+      await platform.postThanksMessage(comment);
       return;
     }
 

@@ -1,5 +1,6 @@
 import { IChatPlatform, PlatformState } from '../IChatPlatform';
 import { YouTubeService } from '../YouTubeService';
+import { Comment } from "@onecomme.com/onesdk/types/Comment";
 
 export class YouTubePlatform implements IChatPlatform {
   private youtubeService: YouTubeService;
@@ -24,6 +25,10 @@ export class YouTubePlatform implements IChatPlatform {
 
   async postMessage(message: string): Promise<void> {
     await this.youtubeService.postChatMessage(message);
+  }
+
+  async postThanksMessage(comment: Comment): Promise<void> {
+    await this.postMessage(`${comment.data.displayName} さん、ナイスパ！`);
   }
 
   getPlatformName(): string {
