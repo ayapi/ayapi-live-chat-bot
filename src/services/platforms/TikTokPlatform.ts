@@ -1,5 +1,5 @@
 import { IChatPlatform, PlatformState } from '../IChatPlatform';
-import { Comment } from "@onecomme.com/onesdk/types/Comment";
+import { TiktokComment } from "@onecomme.com/onesdk/types/Comment";
 import axios from 'axios';
 
 export class TikTokPlatform implements IChatPlatform {
@@ -29,7 +29,9 @@ export class TikTokPlatform implements IChatPlatform {
     }
   }
 
-  async postThanksMessage(comment: Comment): Promise<void> {
+  async postThanksMessage(comment: TiktokComment): Promise<void> {
+    const amount = comment.data.price;
+    if (!amount || amount < 99) return;
     const messages = [
       `@${comment.data.displayName} さん、ナイギフです！`,
       `@${comment.data.displayName} さん、Nice Gift！`,
