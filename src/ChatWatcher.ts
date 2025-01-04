@@ -165,7 +165,9 @@ export class ChatWatcher {
         if (detection === "hiroyuki") state.lastUhyoResponse = now;
 
         const finalMessage = detection === "demand" 
-          ? `${comment.data.name} さん、${message}`
+          ? comment.service === "tiktok"
+            ? `@${comment.data.displayName} さん、${message}`
+            : `${comment.data.displayName} さん、${message}`
           : message;
 
         await platform.postMessage(finalMessage);
