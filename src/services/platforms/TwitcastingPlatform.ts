@@ -1,6 +1,7 @@
 import { IChatPlatform, PlatformState } from '../IChatPlatform';
 import { Comment } from "@onecomme.com/onesdk/types/Comment";
 import dotenv from 'dotenv';
+import twicasMessages from '../../../static/donation-messages/twicas.json';
 
 dotenv.config();
 
@@ -112,5 +113,9 @@ export class TwitcastingPlatform implements IChatPlatform {
       redirectUri: process.env.TWICAS_REDIRECT_URI,
       accessToken: this.accessToken
     };
+  }
+
+  getDonationMessages(): { [lang: string]: string[] } {
+    return twicasMessages;
   }
 } 

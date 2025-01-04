@@ -130,16 +130,26 @@ export class ChatWatcher {
       const commentsToProcess = [...this.commentQueue];
       this.commentQueue = [];
 
+      // コメントとプラットフォームの情報を保持
+      const commentPlatforms = commentsToProcess.map(comment => ({
+        comment,
+        platform: this.platforms.get(comment.service)
+      })).filter((pair): pair is { comment: Comment, platform: IChatPlatform } => 
+        pair.platform !== undefined
+      );
+
+      if (commentPlatforms.length === 0) return;
+
       const result = await this.hiroyuki.processBatchComments(
-        commentsToProcess.map(c => this.removeHtmlTags(c.data.comment))
+        commentPlatforms.map(pair => this.removeHtmlTags(pair.comment.data.comment)),
+        commentPlatforms.map(pair => pair.platform)
       );
 
       for (let i = 0; i < result.comments.length; i++) {
         const { detection, message } = result.comments[i];
-        const comment = commentsToProcess[i];
-        const platform = this.platforms.get(comment.service);
+        const { comment, platform } = commentPlatforms[i];
         
-        if (!message || !platform) continue;
+        if (!message) continue;
 
         const state = platform.getState();
         const now = Date.now();

@@ -13,4 +13,5 @@ export interface IChatPlatform {
   postThanksMessage(comment: Comment): Promise<void>;
   getPlatformName(): string;
   getState(): PlatformState;
+  getDonationMessages(): { [lang: string]: string[] };
 } 

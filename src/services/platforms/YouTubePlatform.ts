@@ -1,6 +1,7 @@
 import { IChatPlatform, PlatformState } from '../IChatPlatform';
 import { YouTubeService } from '../YouTubeService';
 import { Comment } from "@onecomme.com/onesdk/types/Comment";
+import youtubeMessages from '../../../static/donation-messages/youtube.json';
 
 export class YouTubePlatform implements IChatPlatform {
   private youtubeService: YouTubeService;
@@ -37,5 +38,9 @@ export class YouTubePlatform implements IChatPlatform {
 
   getState(): PlatformState {
     return this.state;
+  }
+
+  getDonationMessages(): { [lang: string]: string[] } {
+    return youtubeMessages;
   }
 } 

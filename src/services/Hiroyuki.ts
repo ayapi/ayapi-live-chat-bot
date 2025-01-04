@@ -1,7 +1,6 @@
 import OpenAI from 'openai';
 import * as dotenv from 'dotenv';
-
-import superchatMessages from '../../static/superchat.json';
+import { IChatPlatform } from './IChatPlatform';
 
 // 型定義を追加
 interface BotResponse {
@@ -274,7 +273,29 @@ export class HiroyukiBot {
         `;
   }
 
-  async generateResponse(message: string): Promise<BotResponse> {
+  private getLanguageSpecificDonationResponse(message: string, platform: IChatPlatform): { lang: string, messages: string[] } {
+    // 言語判定
+    const isJapanese = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(message);
+    const isKorean = /[\u3130-\u318F\uAC00-\uD7AF]/.test(message);
+    const isEnglish = /^[A-Za-z\s.,!?]+$/.test(message);
+    const isFrench = /[àâçéèêëîïôûùüÿñ]/i.test(message);
+    const isSpanish = /[áéíóúüñ¿¡]/i.test(message);
+
+    const donationMessages = platform.getDonationMessages();
+    let lang = 'en';  // デフォルトは英語
+
+    if (isJapanese) lang = 'ja';
+    else if (isKorean) lang = 'ko';
+    else if (isFrench) lang = 'fr';
+    else if (isSpanish) lang = 'es';
+
+    return {
+      lang,
+      messages: donationMessages[lang] || donationMessages['en']  // フォールバック
+    };
+  }
+
+  async generateResponse(message: string, platform: IChatPlatform): Promise<BotResponse> {
     try {
       // まず判定のみ実行
       const detection = await this.getCommentType(message);
@@ -282,7 +303,7 @@ export class HiroyukiBot {
       // 問題のあるコメントの場合のみ返答を生成
       if (detection !== "none") {
         if (detection === "demand") {
-          const { messages } = this.getLanguageSpecificSuperChatResponse(message);
+          const { messages } = this.getLanguageSpecificDonationResponse(message, platform);
           // ランダムに1行を選択
           const randomIndex = Math.floor(Math.random() * messages.length);
           return {
@@ -380,25 +401,7 @@ export class HiroyukiBot {
     return content;
   }
 
-  private getLanguageSpecificSuperChatResponse(message: string): { lang: string, messages: string[] } {
-    // 簡易的な言語判定
-    const isJapanese = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(message);
-    const isKorean = /[\u3130-\u318F\uAC00-\uD7AF]/.test(message);
-    const isEnglish = /^[A-Za-z\s.,!?]+$/.test(message);
-    const isFrench = /[àâçéèêëîïôûùüÿñ]/i.test(message);
-    const isSpanish = /[áéíóúüñ¿¡]/i.test(message);
-
-    if (isJapanese) return { lang: 'ja', messages: superchatMessages.ja };
-    if (isKorean) return { lang: 'ko', messages: superchatMessages.ko };
-    if (isEnglish) return { lang: 'en', messages: superchatMessages.en };
-    if (isFrench) return { lang: 'fr', messages: superchatMessages.fr };
-    if (isSpanish) return { lang: 'es', messages: superchatMessages.es };
-    
-    // 上記に当てはまらなければ英語
-    return { lang: 'en', messages: superchatMessages.en };
-  }
-
-  async processBatchComments(messages: string[]): Promise<BatchProcessResult> {
+  async processBatchComments(messages: string[], platforms: IChatPlatform[]): Promise<BatchProcessResult> {
     try {
       // まず全コメントの判定を一度に行う
       const detectionResponse = await this.client.chat.completions.create({
@@ -483,7 +486,7 @@ export class HiroyukiBot {
           if (detection === "none") return null;
 
           if (detection === "demand") {
-            const { messages } = this.getLanguageSpecificSuperChatResponse(msg);
+            const { messages } = this.getLanguageSpecificDonationResponse(msg, platforms[i]);
             const randomIndex = Math.floor(Math.random() * messages.length);
             return {
               message: msg,

@@ -1,6 +1,7 @@
 import { IChatPlatform, PlatformState } from '../IChatPlatform';
 import { TiktokComment } from "@onecomme.com/onesdk/types/Comment";
 import axios from 'axios';
+import tiktokMessages from '../../../static/donation-messages/tiktok.json';
 
 export class TikTokPlatform implements IChatPlatform {
   private readonly TIKTOK_API_URL = 'http://localhost:9080/send';
@@ -46,5 +47,9 @@ export class TikTokPlatform implements IChatPlatform {
 
   getState(): PlatformState {
     return this.state;
+  }
+
+  getDonationMessages(): { [lang: string]: string[] } {
+    return tiktokMessages;
   }
 } 

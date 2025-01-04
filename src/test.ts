@@ -1,4 +1,37 @@
 import { HiroyukiBot } from './services/Hiroyuki';
+import { IChatPlatform, PlatformState } from './services/IChatPlatform';
+import { Comment } from '@onecomme.com/onesdk/types/Comment';
+import youtubeMessages from '../static/donation-messages/youtube.json';
+
+// テスト用のモックプラットフォーム
+class MockPlatform implements IChatPlatform {
+  private state: PlatformState = {
+    lastGiftResponse: 0,
+    lastAgeResponse: 0,
+    lastUhyoResponse: 0,
+    botUserId: 'mock-bot'
+  };
+
+  async initialize(_config: any): Promise<boolean> {
+    return true;
+  }
+
+  async postMessage(_message: string): Promise<void> {}
+
+  async postThanksMessage(_comment: Comment): Promise<void> {}
+
+  getPlatformName(): string {
+    return 'youtube';
+  }
+
+  getState(): PlatformState {
+    return this.state;
+  }
+
+  getDonationMessages(): { [lang: string]: string[] } {
+    return youtubeMessages;  // テスト用にYouTubeのメッセージを使用
+  }
+}
 
 const sampleComments = [
   "こんにちは！",
@@ -77,12 +110,13 @@ async function sleep(ms: number): Promise<void> {
 
 async function testSingleMode() {
   const bot = new HiroyukiBot();
+  const mockPlatform = new MockPlatform();
   
   console.log("=== 個別処理モードのテスト開始 ===\n");
   
   for (const comment of sampleComments) {
     console.log(`ユーザー: ${comment}`);
-    const response = await bot.generateResponse(comment);
+    const response = await bot.generateResponse(comment, mockPlatform);
     
     console.log(`検出タイプ: ${response.detection}`);
     if (response.message) {
@@ -100,10 +134,14 @@ async function testSingleMode() {
 
 async function testBatchMode() {
   const bot = new HiroyukiBot();
+  const mockPlatform = new MockPlatform();
   
   console.log("=== バッチ処理モードのテスト開始 ===\n");
   
-  const result = await bot.processBatchComments(sampleComments);
+  // 全てのコメントに同じプラットフォームを使用（テスト用）
+  const platforms = Array(sampleComments.length).fill(mockPlatform);
+  
+  const result = await bot.processBatchComments(sampleComments, platforms);
   
   for (let i = 0; i < result.comments.length; i++) {
     const { original, detection, message } = result.comments[i];
