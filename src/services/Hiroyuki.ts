@@ -528,11 +528,14 @@ export class HiroyukiBot {
           // 問題ないコメントは言葉遊びをチェック
           const wordplayResponse = wordplays[index];
           if (wordplayResponse) {
-            return {
-              original: msg,
-              detection: "wordplay",
-              message: wordplayResponse
-            };
+            // 「感想」と「データ」を含む返答は除外
+            if (!/感想|データ|ベータ|β|Β|㌼/.test(wordplayResponse)) {
+              return {
+                original: msg,
+                detection: "wordplay",
+                message: wordplayResponse
+              };
+            }
           }
 
           // ひろゆきチェック
