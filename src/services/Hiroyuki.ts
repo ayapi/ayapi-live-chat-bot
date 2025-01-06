@@ -311,60 +311,6 @@ export class HiroyukiBot {
     };
   }
 
-  async generateResponse(message: string, platform: IChatPlatform): Promise<BotResponse> {
-    try {
-      // まず判定のみ実行
-      const detection = await this.getCommentType(message);
-      
-      // 問題のあるコメントの場合のみ返答を生成
-      if (detection !== "none") {
-        if (detection === "demand") {
-          const { messages } = this.getLanguageSpecificDonationResponse(message, platform);
-          // ランダムに1行を選択
-          const randomIndex = Math.floor(Math.random() * messages.length);
-          return {
-            detection,
-            message: messages[randomIndex]
-          };
-        }
-        return {
-          detection,
-          message: await this._generateHiroyukiResponse(message, detection)
-        };
-      }
-
-      // 言葉遊びチェックへ
-      const wordplayResponse = await this._getWordplayResponse(message)
-      if (wordplayResponse) {
-        return {
-          detection: "wordplay",
-          message: wordplayResponse
-        };
-      }
-
-      // ひろゆきチェック
-      if (message.toLowerCase().includes('ひろゆき')) {
-        return {
-          detection: "hiroyuki",
-          message: "うひょ"
-        };
-      }
-
-      // 無視
-      return {
-        detection: "none",
-        message: null
-      }
-
-    } catch (e) {
-      console.error("エラーが発生しました:", e);
-      return {
-        detection: "error",
-        message: null
-      };
-    }
-  }
-
   public async getCommentType(message: string): Promise<string> {
     try {
       const response = await this.client.chat.completions.create({

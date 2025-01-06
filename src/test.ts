@@ -130,29 +130,6 @@ async function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function testSingleMode() {
-  const bot = new HiroyukiBot();
-  const mockPlatform = new MockPlatform();
-  
-  console.log("=== 個別処理モードのテスト開始 ===\n");
-  
-  for (const comment of sampleComments) {
-    console.log(`ユーザー: ${comment}`);
-    const response = await bot.generateResponse(comment, mockPlatform);
-    
-    console.log(`検出タイプ: ${response.detection}`);
-    if (response.message) {
-      console.log(`ひろゆき: ${response.message}`);
-    } else {
-      console.log("ひろゆき: (応答なし)");
-    }
-    
-    console.log("---");
-    await sleep(500);
-  }
-  
-  console.log("\n=== 個別処理モードのテスト終了 ===\n");
-}
 
 async function testBatchMode() {
   const bot = new HiroyukiBot();
@@ -184,16 +161,7 @@ async function testBatchMode() {
 }
 
 async function main() {
-  // コマンドライン引数でモードを選択
-  const mode = process.argv[2] || 'both';
-  
-  if (mode === 'single' || mode === 'both') {
-    await testSingleMode();
-  }
-  
-  if (mode === 'batch' || mode === 'both') {
-    await testBatchMode();
-  }
+  await testBatchMode();
 }
 
 main().catch(console.error);
