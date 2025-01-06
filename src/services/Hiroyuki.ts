@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import * as dotenv from 'dotenv';
-import { IChatPlatform } from './IChatPlatform';
+import { IChatPlatform, PlatformItems } from './IChatPlatform';
 
 // 型定義を追加
 interface BotResponse {
@@ -18,6 +18,11 @@ interface BatchProcessResult {
 
 interface FAQResponse {
   [key: number]: string;
+}
+
+interface DemandLevel {
+  level: 'light' | 'medium' | 'heavy';
+  suggestion: string;
 }
 
 export class HiroyukiBot {
@@ -81,6 +86,66 @@ export class HiroyukiBot {
        • 確信できないもの
 
     配信者は39歳女性の「ぁゃぴ」です。`;
+  }
+  
+  private _createDemandLevelPrompt(): string {
+    return `あなたはライブ配信のチャット欄のモデレーターをしているひろゆきです。
+    視聴者からの要求や命令に対して、以下の3段階で判定し、適切な返答を生成してください。
+
+    【判定基準】
+    - light: 軽い要求
+      • 指ハート、ピース、手を振る
+      • 名前を呼ぶ
+      • 挨拶
+
+    - medium: 中程度の要求
+      • 踊る
+      • 歌う
+      • 立ち上がる必要のあるポーズ
+
+    - heavy: 重い要求
+      • 露出に関する要求
+      • 体に関する過度な要求
+      • 私生活に踏み込む要求
+      • 配信者の尊厳を損なう要求
+
+    【アイテム一覧】
+    - light_items: {{LIGHT_ITEMS}}
+    - medium_items: {{MEDIUM_ITEMS}}
+    - heavy_items: {{HEAVY_ITEMS}}
+
+    【返答方針】
+    1. 「無視すんな」などコメントのスキップに関する否定的な命令の場合：
+        • 「{{LIGHT_ITEMS}}送ったら必ず読んでくれますよ！」
+        など、アイテムなら必ず読まれることが約束されている旨を返答
+
+    2. その他の否定系で行動を制限する命令（〜するな、〜やめろ）の場合：
+        • 「それってあなたの願望ですよね？」
+        • 「命令するのやめてもらっていいですか？」
+        みたいな返答
+
+    3. 前向きな要求の場合：
+        アイテム一覧から要求レベルに合ったものを1つだけ選んで提案する。
+        • light: アイテムを提案しつつ、軽い感じで返答
+          例）「{{LIGHT_ITEM}}送ったらやってくれると思いますよ！」
+        • medium: アイテムを提案しつつ、少し重めに
+          例）「{{MEDIUM_ITEM}}とか送るとやってくれそうです。」
+        • heavy: 高額アイテムを提案して考えさせる
+          例
+            - 「{{HEAVY_ITEM}}送ったら考えてくれるかも。。。」
+            - 「{{HEAVY_ITEM}}送ったらワンチャンあるかも。。。」
+            - 「{{HEAVY_ITEM}}は送れる人でないと難しいんじゃないすかね。。。」
+
+    例をそのまま使わずアレンジしてください。
+    返答は簡潔に1文で、ひろゆきらしい口調を維持してください。基本的に敬語。
+
+    必ず以下の形式のJSONで返してください：
+    {
+      "level": "light" | "medium" | "heavy",
+      "isNegative": true | false,
+      "response": "ひろゆき風の返答"
+    }
+    `;
   }
 
   private _createResponsePrompt(detectionType: string): string {
@@ -330,6 +395,48 @@ export class HiroyukiBot {
     }
   }
 
+  private async _getDemandResponse(message: string, platform: IChatPlatform): Promise<string|null> {
+    try {
+      // 言語判定と定型文の取得
+      const { lang, messages } = this.getLanguageSpecificDonationResponse(message, platform);
+      
+      // 日本語以外は定型文からランダムに返答
+      if (lang !== 'ja') {
+        return messages[Math.floor(Math.random() * messages.length)];
+      }
+
+      // アイテム一覧を取得
+      const items = platform.getDemandItems();
+      
+      // プロンプトにアイテム一覧を埋め込む
+      const prompt = this._createDemandLevelPrompt()
+        .replace('{{LIGHT_ITEMS}}', items.light.join('、'))
+        .replace('{{MEDIUM_ITEMS}}', items.medium.join('、'))
+        .replace('{{HEAVY_ITEMS}}', items.heavy.join('、'));
+
+      // 日本語の場合はAIで判定と返答を生成
+      const response = await this.client.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: prompt },
+          { role: "user", content: message }
+        ],
+        temperature: 0.7,
+        response_format: { type: "json_object" }
+      });
+
+      const result = JSON.parse(response.choices[0].message.content || "{}");
+      
+      // 波括弧とその中身を除去
+      const cleanedResponse = result.response?.replace(/{{[^}]*}}/g, '') || null;
+      return cleanedResponse;
+
+    } catch (e) {
+      console.error("要求の判定中にエラーが発生しました:", e);
+      return null;
+    }
+  }
+
   private async _generateHiroyukiResponse(message: string, detectionType: string): Promise<string|null> {
     const context = `以下は${detectionType}タイプのコメントです。適切に返答してください。`;
     const response = await this.client.chat.completions.create({
@@ -343,24 +450,6 @@ export class HiroyukiBot {
     });
 
     return response.choices[0].message.content ?? null;
-  }
-
-  private async _getWordplayResponse(message: string): Promise<string | null> {
-    const response = await this.client.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        { role: "system", content: this._createWordplayPrompt() },
-        { role: "user", content: message }
-      ],
-      temperature: 0.7,
-      max_tokens: 100
-    });
-
-    const content = response.choices[0].message.content;
-    if (content === "None" || !content?.trim()) {
-      return null;
-    }
-    return content;
   }
 
   async processBatchComments(messages: string[], platforms: IChatPlatform[]): Promise<BatchProcessResult> {
@@ -448,11 +537,10 @@ export class HiroyukiBot {
           if (detection === "none") return null;
 
           if (detection === "demand") {
-            const { messages } = this.getLanguageSpecificDonationResponse(msg, platforms[i]);
-            const randomIndex = Math.floor(Math.random() * messages.length);
+            const response = await this._getDemandResponse(msg, platforms[i]);
             return {
               message: msg,
-              response: messages[randomIndex]
+              response
             };
           }
 

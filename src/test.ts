@@ -1,5 +1,5 @@
 import { HiroyukiBot } from './services/Hiroyuki';
-import { IChatPlatform, PlatformState } from './services/IChatPlatform';
+import { IChatPlatform, PlatformItems, PlatformState } from './services/IChatPlatform';
 import { Comment } from '@onecomme.com/onesdk/types/Comment';
 import youtubeMessages from '../static/donation-messages/youtube.json';
 
@@ -26,6 +26,14 @@ class MockPlatform implements IChatPlatform {
 
   getState(): PlatformState {
     return this.state;
+  }
+
+  getDemandItems(): PlatformItems {
+    return {
+      light: ["スパチャ"],
+      medium: ["1000円"],
+      heavy: ["虹スパ10連", "5万赤スパ", "10万ぐらいスパチャ"]
+    };
   }
 
   getDonationMessages(): { [lang: string]: string[] } {

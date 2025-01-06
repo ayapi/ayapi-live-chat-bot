@@ -1,4 +1,4 @@
-import { IChatPlatform, PlatformState } from '../IChatPlatform';
+import { IChatPlatform, PlatformState, PlatformItems } from '../IChatPlatform';
 import { TiktokComment } from "@onecomme.com/onesdk/types/Comment";
 import axios from 'axios';
 import tiktokMessages from '../../../static/donation-messages/tiktok.json';
@@ -47,6 +47,14 @@ export class TikTokPlatform implements IChatPlatform {
 
   getState(): PlatformState {
     return this.state;
+  }
+
+  getDemandItems(): PlatformItems {
+    return {
+      light: ["サングラス", "クラッカー", "マネーガン", "なんかギフト"],
+      medium: ["オルゴール", "ペンライト", "ミラーボール"],
+      heavy: ["ライオン", "Universe"]
+    };
   }
 
   getDonationMessages(): { [lang: string]: string[] } {

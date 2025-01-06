@@ -1,4 +1,4 @@
-import { IChatPlatform, PlatformState } from '../IChatPlatform';
+import { IChatPlatform, PlatformState, PlatformItems } from '../IChatPlatform';
 import { Comment } from "@onecomme.com/onesdk/types/Comment";
 import dotenv from 'dotenv';
 import twicasMessages from '../../../static/donation-messages/twicas.json';
@@ -112,6 +112,14 @@ export class TwitcastingPlatform implements IChatPlatform {
       clientSecret: process.env.TWICAS_CLIENT_SECRET,
       redirectUri: process.env.TWICAS_REDIRECT_URI,
       accessToken: this.accessToken
+    };
+  }
+
+  getDemandItems(): PlatformItems {
+    return {
+      light: ["お茶爆"],
+      medium: ["お茶爆100"],
+      heavy: ["お茶爆500の連撃とか", "10万円分ぐらいお茶爆"]
     };
   }
 
