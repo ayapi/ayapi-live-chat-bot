@@ -134,45 +134,65 @@ export class ChatWatcher {
       const commentPlatforms = commentsToProcess.map(comment => ({
         comment,
         platform: this.platforms.get(comment.service)
-      })).filter((pair): pair is { comment: Comment, platform: IChatPlatform } => 
+      })).filter((pair): pair is { comment: Comment, platform: IChatPlatform } =>
         pair.platform !== undefined
       );
 
       if (commentPlatforms.length === 0) return;
+
+      // 入力コメントのログ
+      console.log('\n=== 処理開始 ===');
+      commentPlatforms.forEach(({ comment }, i) => {
+        console.log(`[Input ${i}] ${this.removeHtmlTags(comment.data.comment)}`);
+      });
 
       const result = await this.hiroyuki.processBatchComments(
         commentPlatforms.map(pair => this.removeHtmlTags(pair.comment.data.comment)),
         commentPlatforms.map(pair => pair.platform)
       );
 
+      // 検出結果とレスポンスのログ
+      result.comments.forEach(({ detection, message }, i) => {
+        console.log(`[Detection ${i}] ${detection}`);
+        console.log(`[Response ${i}] ${message || 'null'}`);
+      });
+
       for (let i = 0; i < result.comments.length; i++) {
         const { detection, message } = result.comments[i];
         const { comment, platform } = commentPlatforms[i];
-        
-        if (!message) continue;
+
+        if (!message) {
+          console.log(`[Skip ${i}] メッセージがnullのためスキップ`);
+          continue;
+        }
 
         const state = platform.getState();
         const now = Date.now();
 
+        // クールダウンチェックのログ
         if (detection === "age" && now - state.lastAgeResponse < this.COOLDOWN_DURATION) {
+          console.log(`[Skip ${i}] ageレスポンスのクールダウン中`);
           continue;
         }
         if (detection === "hiroyuki" && now - state.lastUhyoResponse < this.COOLDOWN_DURATION) {
+          console.log(`[Skip ${i}] hiroyukiレスポンスのクールダウン中`);
           continue;
         }
 
         if (detection === "age") state.lastAgeResponse = now;
         if (detection === "hiroyuki") state.lastUhyoResponse = now;
 
-        const finalMessage = detection === "demand" 
+        const finalMessage = detection === "demand"
           ? comment.service === "tiktok"
             ? `@${comment.data.displayName} さん、${message}`
             : `${comment.data.displayName} さん、${message}`
           : message;
 
+        console.log(`[Output ${i}] ${finalMessage}`);
         await platform.postMessage(finalMessage);
         await new Promise(resolve => setTimeout(resolve, this.MESSAGE_INTERVAL));
       }
+      console.log('=== 処理終了 ===\n');
     } catch (error) {
       console.error('キュー処理中にエラーが発生しました:', error);
     } finally {
