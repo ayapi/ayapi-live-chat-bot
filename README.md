@@ -10,10 +10,11 @@
 わんコメのWebSocketのsubscriberとして動作します。
 
 - チャットの自動監視と返信
-- 不適切なコメントの検出と対応
-- FAQへの自動返答
+  - 不適切なコメントの検出と対応
+    - 連投禁止対応
+    - リプライ禁止対応
+  - FAQへの自動返答
 - ひろゆき風の言葉遊び
-- マルチ言語対応（日本語、英語、フランス語、スペイン語）
 - アーカイブ配信の分析機能
 
 ## 必要要件
@@ -27,7 +28,7 @@
 ## インストール
 
 ```bash
-git clone [repository-url]
+git clone git@github.com:ayapi/ayapi-live-chat-bot.git
 cd ayapi-live-chat-bot
 npm install
 ```
