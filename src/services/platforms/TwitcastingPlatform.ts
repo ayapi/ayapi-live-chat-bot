@@ -1,5 +1,5 @@
 import { IChatPlatform, PlatformState, PlatformItems } from '../IChatPlatform';
-import { Comment } from "@onecomme.com/onesdk/types/Comment";
+import { TwicasComment } from "@onecomme.com/onesdk/types/Comment";
 import dotenv from 'dotenv';
 import twicasMessages from '../../../static/donation-messages/twicas.json';
 
@@ -88,17 +88,32 @@ export class TwitcastingPlatform implements IChatPlatform {
     }
   }
 
-  async postThanksMessage(comment: Comment): Promise<void> {
-    const messages = [
-      `${comment.data.displayName}さん、ナイス茶！`,
-      `${comment.data.displayName}さん、Nice Tea!`,
-    ];
-    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
-    await this.postMessage(randomMessage);
+  async postThanksMessage(comment: TwicasComment): Promise<void> {
+    if (comment.data.price === 0) {
+      return;
+    }
+
+    if (comment.data.item?.name.includes("お茶爆")) {
+      const messages = [
+        `${comment.data.displayName}さん、ナイス茶！`,
+        `${comment.data.displayName}さん、Nice Tea!`,
+      ];
+      const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+      await this.postMessage(randomMessage);
+    }
+
+    if (comment.data.item?.name.includes("お肉爆")) {
+      const messages = [
+        `${comment.data.displayName}さん、ナイス肉！`,
+        `${comment.data.displayName}さん、Nice Meat!`,
+      ];
+      const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+      await this.postMessage(randomMessage);
+    }
   }
 
   getPlatformName(): string {
-    return 'twitcasting';
+    return 'twicas';
   }
 
   getState(): PlatformState {
