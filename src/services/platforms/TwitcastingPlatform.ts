@@ -16,6 +16,10 @@ export class TwitcastingPlatform implements IChatPlatform {
       lastGiftResponse: 0,
       lastAgeResponse: 0,
       lastUhyoResponse: 0,
+      spamCooldowns: {
+        greeting: 0,
+        repeat: 0
+      },
       botUserId
     };
 

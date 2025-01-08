@@ -7,23 +7,27 @@ import { TikTokPlatform } from './services/platforms/TikTokPlatform';
 import { TwitcastingPlatform } from './services/platforms/TwitcastingPlatform';
 import { Comment } from "@onecomme.com/onesdk/types/Comment";
 import { Service } from "@onecomme.com/onesdk/types/Service";
+import { SpamDetector } from './services/SpamDetector';
 
 export class ChatWatcher {
   private wsClient: WebSocketClient;
   private hiroyuki: HiroyukiBot;
+  private spamDetector: SpamDetector;
   private platforms: Map<string, IChatPlatform> = new Map();
   private commentQueue: Comment[] = [];
   private isProcessing: boolean = false;
   private readonly MAX_QUEUE_SIZE = 20;
   private readonly MESSAGE_INTERVAL = 10000; // 10秒
-  private readonly QUEUE_INTERVAL = 60 * 1000; // 1分
+  private readonly QUEUE_INTERVAL = 30 * 1000;
   private readonly PROMOTION_INTERVAL = 30 * 60 * 1000; // 30分
   private readonly PROMOTION_INITIAL_DELAY = 15 * 60 * 1000; // 15分
   private readonly COOLDOWN_DURATION = 60 * 1000 * 5; // 5分
+  private readonly SPAM_COOLDOWN_DURATION = 60 * 1000 * 3;
 
   constructor(wsUrl: string, platformConfigs: { [key: string]: any }) {
     this.wsClient = new WebSocketClient(wsUrl);
     this.hiroyuki = new HiroyukiBot();
+    this.spamDetector = new SpamDetector();
     this.initializePlatforms(platformConfigs);
     this.initialize();
     this.processQueue();
@@ -130,7 +134,6 @@ export class ChatWatcher {
       const commentsToProcess = [...this.commentQueue];
       this.commentQueue = [];
 
-      // コメントとプラットフォームの情報を保持
       const commentPlatforms = commentsToProcess.map(comment => ({
         comment,
         platform: this.platforms.get(comment.service)
@@ -140,42 +143,74 @@ export class ChatWatcher {
 
       if (commentPlatforms.length === 0) return;
 
-      // 入力コメントのログ
       console.log('\n=== 処理開始 ===');
-      commentPlatforms.forEach(({ comment }, i) => {
-        console.log(`[Input ${i}] ${this.removeHtmlTags(comment.data.comment)}`);
-      });
 
-      const result = await this.hiroyuki.processBatchComments(
-        commentPlatforms.map(pair => this.removeHtmlTags(pair.comment.data.comment)),
-        commentPlatforms.map(pair => pair.platform)
-      );
+      // スパムチェックと処理
+      for (const { comment, platform } of commentPlatforms) {
+        const cleanedMessage = this.removeHtmlTags(comment.data.comment);
+        console.log(`[Input] ${cleanedMessage}`);
 
-      // 検出結果とレスポンスのログ
-      result.comments.forEach(({ detection, message }, i) => {
-        console.log(`[Detection ${i}] ${detection}`);
-        console.log(`[Response ${i}] ${message || 'null'}`);
-      });
+        // スパムチェック
+        const spamResult = this.spamDetector.detect(comment.data.userId, cleanedMessage);
+        
+        if (spamResult.isSpam) {
+          console.log(`[Detection] ${spamResult.type}`);
+          
+          const state = platform.getState();
+          const now = Date.now();
+          
+          // スパムタイプに応じたクールダウンチェック
+          if (spamResult.type === 'greeting_spam' && now - state.spamCooldowns.greeting < this.SPAM_COOLDOWN_DURATION) {
+            console.log(`[Skip] ${comment.service}での挨拶スパム警告のクールダウン中`);
+            continue;
+          }
+          if (spamResult.type === 'repetitive' && now - state.spamCooldowns.repeat < this.SPAM_COOLDOWN_DURATION) {
+            console.log(`[Skip] ${comment.service}での連投警告のクールダウン中`);
+            continue;
+          }
 
-      for (let i = 0; i < result.comments.length; i++) {
-        const { detection, message } = result.comments[i];
-        const { comment, platform } = commentPlatforms[i];
+          const spamMessage = spamResult.type === 'greeting_spam'
+            ? "ぁゃぴさんの配信は馴れ合い禁止です。視聴者さん同士の挨拶、リプライはお控えください。"
+            : "連投するのやめてもらっていいすか？続けるようならブロックします、はいすいません。。。";
+          
+          // クールダウンを更新
+          if (spamResult.type === 'greeting_spam') {
+            state.spamCooldowns.greeting = now;
+          } else {
+            state.spamCooldowns.repeat = now;
+          }
+          
+          console.log(`[Output] ${spamMessage}`);
+          await platform.postMessage(spamMessage);
+          await new Promise(resolve => setTimeout(resolve, this.MESSAGE_INTERVAL));
+          continue;
+        }
+
+        // 通常の処理
+        const result = await this.hiroyuki.processBatchComments(
+          [cleanedMessage],
+          [platform]
+        );
+
+        const { detection, message } = result.comments[0];
+        console.log(`[Detection] ${detection}`);
+        console.log(`[Response] ${message || 'null'}`);
 
         if (!message) {
-          console.log(`[Skip ${i}] メッセージがnullのためスキップ`);
+          console.log(`[Skip] メッセージがnullのためスキップ`);
           continue;
         }
 
         const state = platform.getState();
         const now = Date.now();
 
-        // クールダウンチェックのログ
+        // クールダウンチェック
         if (detection === "age" && now - state.lastAgeResponse < this.COOLDOWN_DURATION) {
-          console.log(`[Skip ${i}] ageレスポンスのクールダウン中`);
+          console.log(`[Skip] ageレスポンスのクールダウン中`);
           continue;
         }
         if (detection === "hiroyuki" && now - state.lastUhyoResponse < this.COOLDOWN_DURATION) {
-          console.log(`[Skip ${i}] hiroyukiレスポンスのクールダウン中`);
+          console.log(`[Skip] hiroyukiレスポンスのクールダウン中`);
           continue;
         }
 
@@ -188,10 +223,11 @@ export class ChatWatcher {
             : `${comment.data.displayName} さん、${message}`
           : message;
 
-        console.log(`[Output ${i}] ${finalMessage}`);
+        console.log(`[Output] ${finalMessage}`);
         await platform.postMessage(finalMessage);
         await new Promise(resolve => setTimeout(resolve, this.MESSAGE_INTERVAL));
       }
+
       console.log('=== 処理終了 ===\n');
     } catch (error) {
       console.error('キュー処理中にエラーが発生しました:', error);

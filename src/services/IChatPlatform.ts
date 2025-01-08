@@ -8,9 +8,13 @@ export interface PlatformItems {
 
 export interface PlatformState {
   lastGiftResponse: number;
+  botUserId: string;
   lastAgeResponse: number;
   lastUhyoResponse: number;
-  botUserId: string;
+  spamCooldowns: {
+    greeting: number;
+    repeat: number;
+  };
 }
 
 export interface IChatPlatform {
